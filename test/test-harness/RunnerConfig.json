@@ -1,0 +1,110 @@
+{
+  "activeParameterSetId": 3,
+  "parameterSets": [
+    {
+      "id": 1,
+      "description": "File storage (default) - Uses local filesystem for storage",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 5
+      }
+    },
+    {
+      "id": 2,
+      "description": "In-memory SQLite database - Fast testing with no persistence",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 1000,
+        "config": {
+          "type": "sqlite",
+          "synchronize": true,
+          "logging": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "description": "File-based SQLite database - Persistent local database storage",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 10,
+        "config": {
+          "type": "sqlite",
+          "filename": "default",
+          "synchronize": true,
+          "logging": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "description": "PostgreSQL database - Full database server with logging enabled",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 1000,
+        "config": {
+          "type": "postgresql",
+          "host": "localhost",
+          "port": 5432,
+          "username": "postgres",
+          "password": "password",
+          "database": "test_integration",
+          "synchronize": true,
+          "logging": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "description": "File storage with simulated push failures - Tests error handling scenarios",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 1000,
+        "simulatedPushFailureIndexes": [5, 10, 15, 20]
+      }
+    },
+    {
+      "id": 6,
+      "description": "S3 storage - Uses AWS S3 for distributed storage testing",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 5,
+        "config": {
+          "bucketName": "integration-core",
+          "region": "us-east-2"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "description": "S3 storage - Uses AWS S3 for distributed storage - Tests error handling scenarios",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 1000,
+        "simulatedPushFailureIndexes": [5, 10, 15, 20],
+        "config": {
+          "bucketName": "integration-core",
+          "region": "us-east-2"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "description": "Large dataset test with PostgreSQL - Performance testing with 10k records",
+      "parameterSet": {
+        "clientId": "test-client",
+        "populationSize": 10000,
+        "config": {
+          "type": "postgresql",
+          "host": "localhost",
+          "port": 5432,
+          "username": "postgres",
+          "password": "password",
+          "database": "test_integration",
+          "synchronize": true,
+          "logging": false
+        }
+      }
+    }
+  ]
+}
