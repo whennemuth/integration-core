@@ -36,9 +36,9 @@ describe('Input Parser', () => {
 
     expect(hasInvalid).toBe(true);
     expect(invalidRows.length).toBe(2);
-    expect(invalidRows[0].validationMessages?.get('name')).toBe('name: Minimum length is 4: Bob');
+    expect(invalidRows[0].validationMessages?.get('name')).toBe('Minimum length is 4: Bob');
     expect(invalidRows[0].hash).toBeUndefined();
-    expect(invalidRows[1].validationMessages?.get('email')).toBe('email: Invalid email format: invalid-email');
+    expect(invalidRows[1].validationMessages?.get('email')).toBe('Invalid email format: invalid-email');
     expect(invalidRows[1].hash).toBeUndefined();
   });
 

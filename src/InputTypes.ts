@@ -3,6 +3,7 @@ import { PushResult } from "./DataTarget";
 export type FieldDefinition = {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'date' | 'email' | 'url' | 'select' | 'multiselect';
+  isPrimaryKey?: boolean;
   label?: string;
   required: boolean;
   defaultValue?: string | number | boolean;
@@ -35,7 +36,7 @@ export type FieldSet = {
 }
 
 export type Input = {
-  fieldDefinitions?: FieldDefinition[];
+  fieldDefinitions: FieldDefinition[];
   fieldSets: FieldSet[];
 };
 

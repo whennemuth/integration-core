@@ -1,47 +1,63 @@
-import { FieldSet, Input } from "./InputTypes";
+import { FieldSet } from "./InputTypes";
 
 /**
- * Represents storage, like a database, file system or bucket storage, dynamodb, etc. where two sets of 
- * Input data objects can be stored for comparison with each other for the purposes of finding their "delta".
+ * Base interface for delta storage implementations.
+ * Contains common properties and operations shared by all storage types.
  */
-export type DeltaStorage = {
+export interface DeltaStorage {
   name: string;
   description: string;
-
+  
   /**
-   * Use this if the delta storage unit itself can produce the "delta", ie: a relational database where an 
-   * outer join on the hash values is used. Must be preceded by storeCurrentInput to have both sets of data in place.
-   * @returns 
-   */
-  fetchDeltaInput?: () => Promise<DeltaResult>;
-
-  /**
-   * Use this if the entire prior fetched input data is needed to compute the delta.
-   * @returns 
-   */
-  fetchPreviousInput?: () => Promise<FieldSet[]>;
-
-  /**
-   *  Use this to store the current input data for delta computations against prior input data.
-   * @param key 
-   * @returns 
-   */
-  storeCurrentInput: (data: FieldSet[]) => Promise<void>;
-
-  /**
-   * Use this to swap or replace the prior input with the current input AFTER the computed delta 
+   * Use this to update the previous data baseline AFTER the computed delta 
    * has been pushed to the target.
-   * @param task Indicates if table/file for current data at the delta storage location should be 
-   * replaced or swap places with the table/file for prior data.
-   * @returns 
+   * @param clientId The client identifier
+   * @param newPreviousData Optional new data to store as previous (for file-based storage)
+   * @returns Promise that resolves when the update is complete
    */
-  rotate: (task: 'swap' | 'replace') => Promise<void>;
+  updatePreviousData(clientId: string, newPreviousData?: FieldSet[]): Promise<any>;
 }
- 
+
+/**
+ * File-based delta storage (filesystem, S3, etc.) where current data comes from live DataSource
+ * and only previous data needs to be stored for delta computation.
+ */
+export interface FileDeltaStorage extends DeltaStorage {
+  /**
+   * Fetches the previous input data for delta computation against current live data.
+   * @param clientId The client identifier
+   * @returns Promise resolving to the previous field sets
+   */
+  fetchPreviousData(clientId: string): Promise<FieldSet[]>;
+}
+
+/**
+ * Database-centric delta storage where both current and previous data are stored,
+ * and deltas are computed via database operations (e.g., outer joins on hash values).
+ */
+export interface DatabaseDeltaStorage extends DeltaStorage {
+  /**
+   * Stores the current input data for delta computations against prior input data.
+   * @param clientId The client identifier
+   * @param data The field sets to store as current data
+   * @returns Promise that resolves when storage is complete
+   */
+  storeCurrentData(clientId: string, data: FieldSet[]): Promise<any>;
+  
+  /**
+   * Computes and returns the delta using database operations.
+   * Must be preceded by storeCurrentData to have both sets of data in place.
+   * @param clientId The client identifier
+   * @returns Promise resolving to the computed delta result
+   */
+  fetchDelta(clientId: string): Promise<DeltaResult>;
+}
+
+export type FishingParms = { newOrUpdatedRecords: FieldSet[], removedOrUpdatedRecords: FieldSet[] };
 export type DeltaParms = {
   // Clients must implement a function that "fishes" out the updated records from the addedRecords as 
   // this is where they will initially appear.
-  fishOutTheUpdates: (addedRecords: FieldSet[], removedRecords: FieldSet[]) => DeltaResult;
+  fishOutTheUpdates: (parms: FishingParms) => DeltaResult;
   data?: { previous: FieldSet[], current: FieldSet[] };
 }
 

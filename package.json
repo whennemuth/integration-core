@@ -3,12 +3,11 @@
   "author": "Warren Hennemuth",
   "keywords": [
     "integration",
-    "cdc",
     "typescript",
     "javascript"
   ],
   "license": "ISC",
-  "description": "A nodejs typescript library of abstract components and interfaces that provide baseline functionality for CDC operations between source and target systems.",
+  "description": "A nodejs typescript library of abstract components and interfaces that provide baseline functionality for determining and pushing changes between 2 sets of data to a target system.",
   "repository": {
     "type": "git",
     "url": "https://github.com/whennemuth/integration-core.git"
@@ -33,10 +32,27 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^24.7.2",
+    "@types/pg": "^8.15.6",
     "esbuild": "^0.25.10",
     "jest": "^30.2.0",
+    "pg-mem": "^3.0.5",
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.27"
   }
 }

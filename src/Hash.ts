@@ -5,6 +5,8 @@ import { FieldSet } from './InputTypes';
 /**
  * Generate a SHA-256 hash of the concatenated field values in a FieldSet.
  * @param fieldSet The FieldSet containing fieldValues to hash.
+ * @param sort Whether to sort the fieldValues by field name before hashing. 
+ * Defaults to false, assuming that fieldValues are already in a consistent natural order.
  * @returns A hexadecimal string representing the SHA-256 hash.
  */
 export const hash = (fieldSet: FieldSet, sort: boolean = false): string => {

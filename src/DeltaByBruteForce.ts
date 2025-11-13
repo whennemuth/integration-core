@@ -1,4 +1,4 @@
-import { DeltaEngine, DeltaParms, DeltaResult } from "./DeltaTypes";
+import { DeltaEngine, DeltaParms, DeltaResult, FishingParms } from "./DeltaTypes";
 import { FieldSet } from "./InputTypes";
 
 /**
@@ -6,7 +6,7 @@ import { FieldSet } from "./InputTypes";
  * comparing values from the hashed result of each of their combined field sets (records).
  * Overlapping hashes indicate unchanged records, while non-overlapping hashes indicate new, changed, 
  * or removed records. This implementation is straightforward but reaches a performance considerations
- * at around 200,000 records.
+ * threshold at around 200,000 records.
  */
 export class BruteForceDeltaEngine implements DeltaEngine {
   name = "Brute Force Delta Engine";
@@ -28,57 +28,70 @@ export class BruteForceDeltaEngine implements DeltaEngine {
      *   Best:   sets (O(n))
      * -------------------------------------------------------------------------------------
      */
-    const previousIds = previous.map(record => record.hash).filter((hash): hash is string => hash !== undefined);
-    const currentIds = current.map(record => record.hash).filter((hash): hash is string => hash !== undefined);
-    const previousSet = new Set(previousIds);
-    const currentSet = new Set(currentIds);
+    const previousHashes = previous.map(record => record.hash).filter((hash): hash is string => hash !== undefined);
+    const currentHashes = current.map(record => record.hash).filter((hash): hash is string => hash !== undefined);
+    const previousHashSet = new Set(previousHashes);
+    const currentHashSet = new Set(currentHashes);
 
-    // Find added/removed efficiently 
-    const addedHashes = currentIds.filter(id => !previousSet.has(id));
-    const removedHashes = previousIds.filter(id => !currentSet.has(id));
+    // Find new/missing efficiently
+    const newHashes = currentHashes.filter(hash => !previousHashSet.has(hash));
+    const missingHashes = previousHashes.filter(hash => !currentHashSet.has(hash));
 
     // Get a subset of the original records based on the added/removed hashes (should be small, so performance is ok)
-    const addedRecords = current.filter(record => record.hash && addedHashes.includes(record.hash));
-    const removedRecords = previous.filter(record => record.hash && removedHashes.includes(record.hash));
+    const newOrUpdatedRecords = current.filter(record => record.hash && newHashes.includes(record.hash));
+    const removedOrUpdatedRecords = previous.filter(record => record.hash && missingHashes.includes(record.hash));
 
-    return fishOutTheUpdates(addedRecords, removedRecords);
+    return fishOutTheUpdates({ newOrUpdatedRecords, removedOrUpdatedRecords });
   }
 }
 
 /**
  * Use a comparison based on the primary key set (set of field names) which form the basis of finding
- * the "same" record between added and removed records to determine if it is truly new or removed or just 
- * "changed". This is less efficient, but the added/removed sets should be small enough to make 
- * this feasible. 
+ * the "same" record between the following 2 types of provided record sets:
+ *   1) Incoming records with hashes not found in the previous set of records.
+ *      These comprise potentially new or merely updated records.
+ *   2) Previous records with hashes not found in the incoming records. 
+ *      These comprise potentially removed or merely updated records.
+ * The comparison performed here determines which records are shared by both sets by primary key, and 
+ * "fishes" those out of both sets into their own single set, and returns all 3 sets. 
  */
-export const fishOutUpdatedRecordsByPK = (added: FieldSet[], removed: FieldSet[], primaryKeySet: Set<string>): DeltaResult => {
+export const fishOutUpdatedRecordsByPK = (fishingParms:FishingParms, primaryKeySet: Set<string>): DeltaResult => {
+  const { newOrUpdatedRecords, removedOrUpdatedRecords } = fishingParms;
   if (primaryKeySet.size === 0) {
     // If the primary key set is not provided, we cannot determine changed records, so we skip this step.
-    return { added: added, updated: [], removed };
+    return { added: newOrUpdatedRecords, updated: [], removed: removedOrUpdatedRecords };
   }
-  const changedRecords: FieldSet[] = [];
-  const stillAddedRecords: FieldSet[] = [];
-  for (const addedRecord of added) {
-    const matchingRemovedIndex = removed.findIndex(removedRecord => {
+  const updatedRecords: FieldSet[] = [];
+  const addedRecords: FieldSet[] = [];
+
+  for (const newOrUpdatedRecord of newOrUpdatedRecords) {
+    const matchingRemovedIndex = removedOrUpdatedRecords.findIndex(removedOrUpdatedRecord => {
       return Array.from(primaryKeySet.values()).every(keyname => {
-        // Return true if a field in addedRecords can be found with a name that matches keyname 
-        // and whose value is the same in removedRecord for a field of that same name.
-        return addedRecord.fieldValues.some(fv => 
-          removedRecord.fieldValues.some(rfv => 
-            rfv[`${keyname}`] === fv[`${keyname}`]));
+        // Get the primary key field value from newOrUpdatedRecord
+        const newRecordKeyField = newOrUpdatedRecord.fieldValues.find(fv => keyname in fv);
+        const newRecordKeyValue = newRecordKeyField?.[keyname];
+        
+        // Get the primary key field value from removedOrUpdatedRecord  
+        const removedRecordKeyField = removedOrUpdatedRecord.fieldValues.find(fv => keyname in fv);
+        const removedRecordKeyValue = removedRecordKeyField?.[keyname];
+        
+        // Both values must exist and be equal
+        return newRecordKeyValue !== undefined && 
+               removedRecordKeyValue !== undefined && 
+               newRecordKeyValue === removedRecordKeyValue;
       });
     });
 
     if (matchingRemovedIndex !== -1) {
       // Found a matching removed record, so this is a changed record
-      changedRecords.push(addedRecord);
-      // Remove the matched removed record to prevent duplicate matches
-      removed.splice(matchingRemovedIndex, 1);
+      updatedRecords.push(newOrUpdatedRecord);
+      // Remove the matched removed record because it is now accounted for in the changed set
+      removedOrUpdatedRecords.splice(matchingRemovedIndex, 1);
     } 
     else {
-      stillAddedRecords.push(addedRecord);
+      addedRecords.push(newOrUpdatedRecord);
     }
   }
 
-  return { added: stillAddedRecords, updated: changedRecords, removed };
+  return { added: addedRecords, updated: updatedRecords, removed: removedOrUpdatedRecords };
 }

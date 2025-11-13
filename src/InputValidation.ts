@@ -31,25 +31,25 @@ export class BasicFieldValidator extends FieldValidator {
       return false;
     }
     if (type === 'number' && typeof fldValue !== 'number') {
-      this._validationMessage = `${name}: Expected a number`;
+      this._validationMessage = `Expected a number`;
       return false;
     }
     if (type === 'string' && typeof fldValue !== 'string') {
-      this._validationMessage = `${name}: Expected a string`;
+      this._validationMessage = `Expected a string`;
       return false;
     }
     if (type === 'boolean' && typeof fldValue !== 'boolean') {
-      this._validationMessage = `${name}: Expected a boolean`;
+      this._validationMessage = `Expected a boolean`;
       return false;
     }
     if (type === 'date' && !(fldValue instanceof Date) && isNaN(Date.parse(fldValue as string))) {
-      this._validationMessage = `${name}: Expected a date.`;
+      this._validationMessage = `Expected a date.`;
       return false;
     }
     if (type === 'email') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (typeof fldValue !== 'string' || !emailPattern.test(fldValue)) {
-        this._validationMessage = `${name}: Invalid email format: ${fldValue}`;
+        this._validationMessage = `Invalid email format: ${fldValue}`;
         return false;
       }
     }
@@ -58,7 +58,7 @@ export class BasicFieldValidator extends FieldValidator {
         new URL(fldValue as string);
       } 
       catch {
-        this._validationMessage = `${name}: Invalid URL format: ${fldValue}`;
+        this._validationMessage = `Invalid URL format: ${fldValue}`;
         return false;
       }
     }
@@ -78,13 +78,13 @@ export class BasicFieldValidator extends FieldValidator {
 
       if (Array.isArray(fldValue)) {
         if (options && ! inList(fldValue)) {
-          this._validationMessage = `${name}: One or more values not in options: ${fldValue}`;
+          this._validationMessage = `One or more values not in options: ${fldValue}`;
           return false;
         }
       } 
       else {
         if (options && ! inList([fldValue])) {
-          this._validationMessage = `${name}: Value not in options: ${fldValue}`;
+          this._validationMessage = `Value not in options: ${fldValue}`;
           return false;
         }
       }
@@ -96,13 +96,13 @@ export class BasicFieldValidator extends FieldValidator {
       const { minLength, maxLength, pattern, min, max, custom = [] } = restriction;
       if (minLength !== undefined && typeof fldValue === 'string') {
         if (fldValue.length < minLength) {
-          this._validationMessage = `${name}: Minimum length is ${minLength}: ${fldValue}`;
+          this._validationMessage = `Minimum length is ${minLength}: ${fldValue}`;
           return false;
         }
       }
       if (maxLength !== undefined && typeof fldValue === 'string') {
         if (fldValue.length > maxLength) {
-          this._validationMessage = `${name}: Maximum length is ${maxLength}: ${fldValue}`;
+          this._validationMessage = `Maximum length is ${maxLength}: ${fldValue}`;
           return false;
         }
       }
@@ -110,26 +110,26 @@ export class BasicFieldValidator extends FieldValidator {
         const fv = `${fldValue}`
         const regex = new RegExp(pattern);
         if (!regex.test(fv)) {
-          this._validationMessage = `${name}: Value does not match pattern ${pattern}: ${fldValue}`;
+          this._validationMessage = `Value does not match pattern ${pattern}: ${fldValue}`;
           return false;
         }
       }
       if (min !== undefined && typeof fldValue === 'number') {
         if (fldValue < min) {
-          this._validationMessage = `${name}: Minimum value is ${min}: ${fldValue}`;
+          this._validationMessage = `Minimum value is ${min}: ${fldValue}`;
           return false;
         }
       }
       if (max !== undefined && typeof fldValue === 'number') {
         if (fldValue > max) {
-          this._validationMessage = `${name}: Maximum value is ${max}: ${fldValue}`;
+          this._validationMessage = `Maximum value is ${max}: ${fldValue}`;
           return false;
         }
       }
       
       for (const customValidator of custom) {
         if ( ! customValidator(fldValue, row)) {
-          this._validationMessage = `${name}: Custom validation failed: ${fldValue}`;
+          this._validationMessage = `Custom validation failed: ${fldValue}`;
           return false;
         }
       }

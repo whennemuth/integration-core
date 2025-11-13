@@ -69,9 +69,9 @@ describe('Input Validation', () => {
     expect(isValid).toBe(true);
     expect(isInvalid).toBe(true);
     expect(messages.size).toBe(3);
-    expect(messages.get('username')).toBe('username: Minimum length is 3: u');
-    expect(messages.get('age')).toBe('age: Maximum value is 120: 150');
-    expect(messages.get('email')).toBe('email: Minimum length is 14: too@short.com');
+    expect(messages.get('username')).toBe('Minimum length is 3: u');
+    expect(messages.get('age')).toBe('Maximum value is 120: 150');
+    expect(messages.get('email')).toBe('Minimum length is 14: too@short.com');
   });
 
   it('should validate email properly', () => {
@@ -96,7 +96,7 @@ describe('Input Validation', () => {
     expect(isValid).toBe(true);
     expect(isInvalid).toBe(true);
     expect(messages.size).toBe(1);
-    expect(messages.get('email')).toBe('email: Invalid email format: invalidEmail');
+    expect(messages.get('email')).toBe('Invalid email format: invalidEmail');
 
     // Add a validator that should invalidate both rows
     fieldDefinitions[1].restrictions = [ { maxLength: 5 } ];
@@ -116,8 +116,8 @@ describe('Input Validation', () => {
     expect(isInvalid).toBe(true);
     expect(messages1.size).toBe(1);
     expect(messages2.size).toBe(1);
-    expect(messages1.get('email')).toBe('email: Maximum length is 5: user1@example.com');
-    expect(messages2.get('email')).toBe('email: Invalid email format: invalidEmail');
+    expect(messages1.get('email')).toBe('Maximum length is 5: user1@example.com');
+    expect(messages2.get('email')).toBe('Invalid email format: invalidEmail');
   });
 
   it('should validate single select from options properly', () => {
@@ -170,10 +170,10 @@ describe('Input Validation', () => {
     expect(rowValidator1.validationMessages.size).toBe(0);
     expect(rowValidator2.validationMessages.size).toBe(0);
     expect(rowValidator3.validationMessages.size).toBe(0);
-    expect(rowValidatorInvalid1.validationMessages?.get('status')).toBe('status: Value not in options: unknown');
-    expect(rowValidatorInvalid2.validationMessages?.get('code')).toBe('code: Value not in options: 400');
-    expect(rowValidatorInvalid3.validationMessages?.get('code')).toBe('code: Value not in options: true');
-    expect(rowValidatorInvalid4.validationMessages?.get('status')).toBe('status: Value not in options: ACTIVE');
+    expect(rowValidatorInvalid1.validationMessages?.get('status')).toBe('Value not in options: unknown');
+    expect(rowValidatorInvalid2.validationMessages?.get('code')).toBe('Value not in options: 400');
+    expect(rowValidatorInvalid3.validationMessages?.get('code')).toBe('Value not in options: true');
+    expect(rowValidatorInvalid4.validationMessages?.get('status')).toBe('Value not in options: ACTIVE');
   });
 
   it('should validate multi select from options properly', () => {
@@ -224,10 +224,10 @@ describe('Input Validation', () => {
     expect(rowValidator1.validationMessages.size).toBe(0);
     expect(rowValidator2.validationMessages.size).toBe(0);
     expect(rowValidator3.validationMessages.size).toBe(0);
-    expect(rowValidatorInvalid1.validationMessages?.get('tags')).toBe('tags: Value not in options: yellow');
-    expect(rowValidatorInvalid2.validationMessages?.get('codes')).toBe('codes: One or more values not in options: 400');
-    expect(rowValidatorInvalid3.validationMessages?.get('tags')).toBe('tags: One or more values not in options: red,yellow');
-    expect(rowValidatorInvalid4.validationMessages?.get('tags')).toBe('tags: One or more values not in options: GREEN');
+    expect(rowValidatorInvalid1.validationMessages?.get('tags')).toBe('Value not in options: yellow');
+    expect(rowValidatorInvalid2.validationMessages?.get('codes')).toBe('One or more values not in options: 400');
+    expect(rowValidatorInvalid3.validationMessages?.get('tags')).toBe('One or more values not in options: red,yellow');
+    expect(rowValidatorInvalid4.validationMessages?.get('tags')).toBe('One or more values not in options: GREEN');
   });
 
   it('should validate custom validators properly', () => {
@@ -280,9 +280,9 @@ describe('Input Validation', () => {
     expect(isInvalid2).toBe(true);
     expect(isInvalid3).toBe(true);
     expect(rowValidator.validationMessages.size).toBe(0);
-    expect(rowValidatorInvalid1.validationMessages?.get('evenNumber')).toBe('evenNumber: Custom validation failed: 3');
-    expect(rowValidatorInvalid2.validationMessages?.get('greaterNumber')).toBe('greaterNumber: Custom validation failed: 2');
-    expect(rowValidatorInvalid3.validationMessages?.get('evenNumber')).toBe('evenNumber: Custom validation failed: 3');
-    expect(rowValidatorInvalid3.validationMessages?.get('greaterNumber')).toBe('greaterNumber: Custom validation failed: 2');
+    expect(rowValidatorInvalid1.validationMessages?.get('evenNumber')).toBe('Custom validation failed: 3');
+    expect(rowValidatorInvalid2.validationMessages?.get('greaterNumber')).toBe('Custom validation failed: 2');
+    expect(rowValidatorInvalid3.validationMessages?.get('evenNumber')).toBe('Custom validation failed: 3');
+    expect(rowValidatorInvalid3.validationMessages?.get('greaterNumber')).toBe('Custom validation failed: 2');
   });
 });

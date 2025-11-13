@@ -8,7 +8,7 @@ execSync('tsc');
 
 // Build for ESM
 esbuild.build({
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['bin/index.ts'],
   bundle: true,
   outdir: 'dist/esm',
   format: 'esm',
@@ -19,7 +19,7 @@ esbuild.build({
 
 // Build for CJS
 esbuild.build({
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['bin/index.ts'],
   bundle: true,
   outdir: 'dist/cjs',
   format: 'cjs',

@@ -16,8 +16,8 @@ describe('Hash', () => {
     const hash2 = hash(row2);
     const hash3 = hash(row3);
     const hash4 = hash(row4);
-    const hash5 = hash(row3, true);
-    const hash6 = hash(row4, true);
+    const hash5 = hash(row3, true); // With explicit sorting
+    const hash6 = hash(row4, true); // With explicit sorting
 
     // Assert
     // ---------------------------------------------------------------------------------
@@ -25,9 +25,9 @@ describe('Hash', () => {
     expect(hash1).toBe(hash2);
     // Records with different values should produce different hashes
     expect(hash1).not.toBe(hash3);
-    // Without sorting, hashes between records with the same fields/values but in different orders should differ
+    // Without sorting (default), hashes between records with the same fields/values but in different orders should differ
     expect(hash3).not.toBe(hash4);
-    // With sorting, hashes should match
+    // With explicit sorting, hashes should match regardless of field order
     expect(hash5).toBe(hash6);
   });
 
