@@ -1,5 +1,6 @@
 
 export * from '../src/DataSource';
+export * from '../src/DataMapper';
 export * from '../src/DataTarget';
 export * from '../src/DeltaTypes';
 export { EndToEnd } from '../src/EndToEnd';

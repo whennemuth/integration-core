@@ -1,3 +1,4 @@
+import { DataMapper } from "./DataMapper";
 import { DataSource } from "./DataSource";
 import { DataTarget, PushAllParms } from "./DataTarget";
 import { DeltaStrategy } from "./delta-strategy/DeltaStrategy";
@@ -12,20 +13,21 @@ export class EndToEnd {
 
   constructor(private params: { 
     dataSource: DataSource; 
+    dataMapper: DataMapper;
     dataTarget: DataTarget; 
     deltaStrategy: DeltaStrategy; 
     fieldValidator?: FieldValidator 
   }) { }
 
   public async execute(): Promise<void> {
-    const { dataSource, dataTarget, deltaStrategy, fieldValidator } = this.params;
+    const { dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator } = this.params;
     const { storage, parms: { config, clientId }, } = deltaStrategy;
   
     // Fetch raw data from the data source
     const rawData = await dataSource.fetchRaw();
 
-    // Convert raw data to Input format
-    const unparsedInput = dataSource.convertRawToInput(rawData);
+    // Convert raw data to Input format using DataMapper
+    const unparsedInput = dataMapper.map(rawData);
 
     // Create field validator factory function    
     const fieldValidatorFactory = (fieldDef: FieldDefinition, field: Field): FieldValidator => 

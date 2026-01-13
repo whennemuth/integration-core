@@ -1,14 +1,12 @@
 import { DataSource } from '../src/DataSource';
+import { DataMapper } from '../src/DataMapper';
 import { BasicPushAllOperation, BatchPushResult, BatchStatus, DataTarget, PushAllParms, PushOneParms, PushResult, SinglePushResult, Status } from '../src/DataTarget';
 import { BruteForceDeltaEngine, fishOutUpdatedRecordsByPK } from '../src/delta-strategy/DeltaByBruteForce';
-import { DeltaEngine, DeltaResult, FileDeltaStorage, DatabaseDeltaStorage, FishingParms } from '../src/DeltaTypes';
-import { hash } from '../src/Hash';
-import { InputParser } from '../src/InputParser';
-import { Field, FieldDefinition, FieldSet, FieldValidator, Input } from '../src/InputTypes';
-import { InputUtilsDecorator } from '../src/InputUtils';
-import { BasicFieldValidator } from '../src/InputValidation';
-import { EndToEnd } from '../src/EndToEnd';
 import { DeltaStrategyParams } from '../src/delta-strategy/DeltaStrategyParams';
+import { DatabaseDeltaStorage, DeltaResult, FileDeltaStorage, FishingParms } from '../src/DeltaTypes';
+import { EndToEnd } from '../src/EndToEnd';
+import { hash } from '../src/Hash';
+import { Field, FieldSet, Input } from '../src/InputTypes';
 
 const previousSourceData = [
   { id: 1, fname: 'Jane', mi: 'J', lname: 'Johnson', dob: '2000-06-06' },
@@ -36,20 +34,16 @@ enum TestScenario {
 }
 
 /**
- * Mock a data source, such as a database or API from which a new set of input data can be fetched.
- * @returns 
+ * Mock DataMapper that converts raw data to Input format
  */
-const getMockDataSource = (): DataSource => {
+const getMockDataMapper = (): DataMapper => {
   return {
-    name: 'Mock Data Source',
-    description: 'A data source for testing purposes',
-    fetchRaw: async () => newSourceData,
-    convertRawToInput: (rawData: any): Input => {
+    map: (rawData: any): Input => {
       // Simulate parsing raw data into Input format
       const converted = {
         fieldDefinitions: [
           { name: 'id', type: 'number', required: true, isPrimaryKey: true },
-          { name: 'fullname', type: 'string', required: true,  },
+          { name: 'fullname', type: 'string', required: true },
           { name: 'dob', type: 'date', required: true }
         ],
         fieldSets: rawData.map((item: any) => ({
@@ -63,6 +57,18 @@ const getMockDataSource = (): DataSource => {
 
       return converted;
     }
+  };
+};
+
+/**
+ * Mock a data source, such as a database or API from which a new set of input data can be fetched.
+ * @returns 
+ */
+const getMockDataSource = (): DataSource => {
+  return {
+    name: 'Mock Data Source',
+    description: 'A data source for testing purposes',
+    fetchRaw: async () => newSourceData
   } satisfies DataSource;
 };
 
@@ -81,7 +87,8 @@ const getMockFileDeltaStorage = (): FileDeltaStorage => {
       console.log(`Fetching previous input for client: ${clientId}`);
 
       // Use the mocked set of previous input data
-      const unhashed = getMockDataSource().convertRawToInput(previousSourceData).fieldSets;
+      const mockDataMapper = getMockDataMapper();
+      const unhashed = mockDataMapper.map(previousSourceData).fieldSets;
 
       // Apply a hash to each FieldSet using Hash.ts (simulates the fetched data as already coming with hashes)
       return unhashed.map(fs => {
@@ -136,12 +143,13 @@ const getMockDatabaseDeltaStorage = (testScenario: string): DatabaseDeltaStorage
       switch(testScenario) {
         case TestScenario.DATABASE_BASIC:
           // updated records will appear in the 'added' array for this scenario.
-          const added: FieldSet[] = getMockDataSource().convertRawToInput(newSourceData.filter(record => {
+          const mockDataMapper = getMockDataMapper();
+          const added: FieldSet[] = mockDataMapper.map(newSourceData.filter(record => {
             return record.id === 5 // Charlie (UPDATED - will appear as added due to hash change)
               ||   record.id === 6 // Diana (UPDATED - will appear as added due to hash change)
               ||   record.id === 7; // Ethan (ADDED)
           })).fieldSets;
-          const removed: FieldSet[] = getMockDataSource().convertRawToInput(previousSourceData.filter(record => {
+          const removed: FieldSet[] = mockDataMapper.map(previousSourceData.filter(record => {
             return record.id === 1 // Jane (REMOVED)
               ||   record.id === 2 // Kyle (REMOVED)
               ||   record.id === 5 // Charlie (UPDATED - will appear as removed due to hash miss in new data)
@@ -151,14 +159,15 @@ const getMockDatabaseDeltaStorage = (testScenario: string): DatabaseDeltaStorage
 
         case TestScenario.DATABASE_WITH_UPDATES:
           // updated records will appear in the 'updated' array for this scenario.
-          const added2: FieldSet[] = getMockDataSource().convertRawToInput(newSourceData.filter(record => {
+          const mockDataMapper2 = getMockDataMapper();
+          const added2: FieldSet[] = mockDataMapper2.map(newSourceData.filter(record => {
             return record.id === 7; // Ethan (ADDED)
           })).fieldSets;
-          const updated2: FieldSet[] = getMockDataSource().convertRawToInput(newSourceData.filter(record => {
+          const updated2: FieldSet[] = mockDataMapper2.map(newSourceData.filter(record => {
             return record.id === 5 // Charlie (UPDATED)
               ||   record.id === 6 // Diana (UPDATED)
           })).fieldSets;
-          const removed2: FieldSet[] = getMockDataSource().convertRawToInput(previousSourceData.filter(record => {
+          const removed2: FieldSet[] = mockDataMapper2.map(previousSourceData.filter(record => {
             return record.id === 1 // Jane (REMOVED)
               ||   record.id === 2; // Kyle (REMOVED)
           })).fieldSets;
@@ -325,6 +334,7 @@ describe('EndToEnd', () => {
     // Execute end-to-end process using the EndToEnd class
     const endToEnd = new EndToEnd({
       dataSource,
+      dataMapper: getMockDataMapper(),
       dataTarget: wrappedDataTarget,
       deltaStrategy
     });

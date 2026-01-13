@@ -1,4 +1,5 @@
 import { EndToEnd } from "../../src/EndToEnd";
+import { MockDataMapper } from "./mock/MockDataMapper";
 import { MockDataSource } from "./mock/MockDataSource";
 import { MockDataTarget } from "./mock/MockDataTarget";
 import { RandomData } from "./mock/RandomData";
@@ -19,12 +20,16 @@ export class DeltaStorageRunner {
     // Create a mock data source to generate test data
     const mockDataSource = new MockDataSource({ clientId, storagePath, generator: new RandomData(populationSize) });
 
+    // Create a mock data mapper
+    const mockDataMapper = new MockDataMapper();
+
     // Create a mock data target that simulates push failures for certain records
     const mockDataTarget = new MockDataTarget({ simulatedPushFailureIndexes });
 
     // Execute end-to-end data flow: fetch, compute delta, push, and store.
     await (new EndToEnd({
       dataSource: mockDataSource,
+      dataMapper: mockDataMapper,
       dataTarget: mockDataTarget,
       deltaStrategy: strategy,
     })).execute();
