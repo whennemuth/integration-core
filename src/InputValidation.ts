@@ -1,4 +1,4 @@
-import { Field, FieldDefinition, FieldSet, FieldValidator } from "./InputTypes";
+import { Field, FieldDefinition, FieldSet, FieldValidator, FieldValue } from "./InputTypes";
 
 /**
  * Apply the configured validation in the field definition to the field value to determine its validity.
@@ -11,14 +11,60 @@ export class BasicFieldValidator extends FieldValidator {
   }
 
   /**
-   * Validates the field against the defined validators.
-   * @param row - Optional row context for custom validators
-   * @returns True if the field is valid, false otherwise
+   * Recursively validate nested FieldValue structures
+   * @param value The FieldValue to validate
+   * @param fieldName The name of the field being validated (for error messages)
+   * @param depth Current recursion depth
+   * @param maxDepth Maximum allowed recursion depth
+   * @returns true if valid, false otherwise
    */
-  public isValid(row?: Array<Field>): boolean {
+  private validateNestedValue(value: FieldValue, fieldName: string, depth: number = 0, maxDepth: number = 10): boolean {
+    if (depth > maxDepth) {
+      this._validationMessage = `Maximum nesting depth (${maxDepth}) exceeded for field ${fieldName}`;
+      return false;
+    }
+    
+    if (value === undefined || value === null) {
+      return true; // null/undefined are handled by required field validation
+    }
+    
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return true; // Primitive types are valid
+    }
+    
+    if (Array.isArray(value)) {
+      // Validate each array element recursively
+      for (let i = 0; i < value.length; i++) {
+        if (!this.validateNestedValue(value[i], `${fieldName}[${i}]`, depth + 1, maxDepth)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    
+    if (typeof value === 'object') {
+      // Validate nested object properties recursively
+      for (const [key, nestedValue] of Object.entries(value)) {
+        if (!this.validateNestedValue(nestedValue as FieldValue, `${fieldName}.${key}`, depth + 1, maxDepth)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    
+    this._validationMessage = `Unsupported value type for field ${fieldName}: ${typeof value}`;
+    return false;
+  }
+
+  public isValid(row?: Field[]): boolean {
     const { field, fldDef: { name, restrictions = [], required, defaultValue, type, options } } = this;
     const fldValue = field[name];
     const isEmpty = fldValue === undefined || fldValue === null || fldValue === '';
+
+    // First, validate the nested structure
+    if (!this.validateNestedValue(fldValue, name)) {
+      return false;
+    }
 
     if( ! required && isEmpty) {
       return true; // If not required and field is empty, it's valid
@@ -30,22 +76,34 @@ export class BasicFieldValidator extends FieldValidator {
       this._validationMessage = `${name} is required`;
       return false;
     }
-    if (type === 'number' && typeof fldValue !== 'number') {
-      this._validationMessage = `Expected a number`;
-      return false;
+
+    // Skip primitive type checking for complex nested values
+    if (typeof fldValue === 'object' && (Array.isArray(fldValue) || fldValue !== null)) {
+      // For nested objects/arrays, we've already validated structure above
+      // and don't need to check primitive types
+    } else {
+      if (type === 'number' && typeof fldValue !== 'number') {
+        this._validationMessage = `Expected a number`;
+        return false;
+      }
+      if (type === 'string' && typeof fldValue !== 'string') {
+        this._validationMessage = `Expected a string`;
+        return false;
+      }
+      if (type === 'boolean' && typeof fldValue !== 'boolean') {
+        this._validationMessage = `Expected a boolean`;
+        return false;
+      }
+      if (type === 'date' && fldValue !== undefined && fldValue !== null) {
+        const isValidDate = (fldValue as any instanceof Date) || 
+          (typeof fldValue === 'string' && !isNaN(Date.parse(fldValue)));
+        if (!isValidDate) {
+          this._validationMessage = `Expected a date.`;
+          return false;
+        }
+      }
     }
-    if (type === 'string' && typeof fldValue !== 'string') {
-      this._validationMessage = `Expected a string`;
-      return false;
-    }
-    if (type === 'boolean' && typeof fldValue !== 'boolean') {
-      this._validationMessage = `Expected a boolean`;
-      return false;
-    }
-    if (type === 'date' && !(fldValue instanceof Date) && isNaN(Date.parse(fldValue as string))) {
-      this._validationMessage = `Expected a date.`;
-      return false;
-    }
+
     if (type === 'email') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (typeof fldValue !== 'string' || !emailPattern.test(fldValue)) {
@@ -128,7 +186,7 @@ export class BasicFieldValidator extends FieldValidator {
       }
       
       for (const customValidator of custom) {
-        if ( ! customValidator(fldValue, row)) {
+        if ( ! customValidator(fldValue, row || [])) {
           this._validationMessage = `Custom validation failed: ${fldValue}`;
           return false;
         }

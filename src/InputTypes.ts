@@ -22,7 +22,7 @@ export type FieldRestrictions = {
   custom?: Array<(value: FieldValue, row?: Array<Field>) => boolean>;
 };
 
-export type FieldValue = string | number | boolean | Array<string | number> | undefined;
+export type FieldValue = string | number | boolean | Array<string | number | FieldValue> | { [key: string]: FieldValue } | undefined;
 
 export type Field = { 
   [key: string]: FieldValue; 

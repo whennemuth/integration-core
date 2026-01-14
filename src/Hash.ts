@@ -1,6 +1,41 @@
 
 import { createHash } from 'crypto';
-import { FieldSet } from './InputTypes';
+import { FieldSet, FieldValue } from './InputTypes';
+
+/**
+ * Recursively serialize a FieldValue to a consistent string representation
+ * @param value The FieldValue to serialize
+ * @param depth Current recursion depth to prevent infinite loops
+ * @param maxDepth Maximum allowed recursion depth
+ */
+const serializeValue = (value: FieldValue, depth: number = 0, maxDepth: number = 10): string => {
+  if (depth > maxDepth) {
+    throw new Error(`Maximum recursion depth (${maxDepth}) exceeded during value serialization`);
+  }
+  
+  if (value === undefined || value === null) {
+    return '';
+  }
+  
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value.toString();
+  }
+  
+  if (Array.isArray(value)) {
+    return value.map(item => serializeValue(item, depth + 1, maxDepth)).join(',');
+  }
+  
+  // Handle nested objects (FieldValue can be an object with FieldValue properties)
+  if (typeof value === 'object' && value !== null) {
+    const sortedKeys = Object.keys(value).sort();
+    return sortedKeys
+      .map(key => `${key}:${serializeValue((value as any)[key], depth + 1, maxDepth)}`)
+      .join(';');
+  }
+  
+  // Fallback for any other case
+  return String(value);
+};
 
 /**
  * Generate a SHA-256 hash of the concatenated field values in a FieldSet.
@@ -21,7 +56,7 @@ export const hash = (fieldSet: FieldSet, sort: boolean = false): string => {
 
   const concatenatedValues = fieldSet.fieldValues
     .map(f => Object.values(f)[0]) // Get the value of each field
-    .map(v => v === undefined ? '' : Array.isArray(v) ? v.join(',') : v.toString()) // Convert to string
+    .map(v => serializeValue(v)) // Convert to string recursively
     .join('|'); // Concatenate with a delimiter
 
   hash.update(concatenatedValues);
