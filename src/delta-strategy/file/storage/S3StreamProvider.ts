@@ -10,7 +10,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { PassThrough, Readable, Writable } from 'stream';
-import { resolveAwsRegion } from '../../../Utils';
+import { resolveAwsRegion } from '../../../utils/Utils';
 import { StreamProvider } from './StreamProvider';
 
 // S3Config type (local definition to avoid circular imports)
