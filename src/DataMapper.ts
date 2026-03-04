@@ -1,6 +1,7 @@
+import { CrudOperation } from "./DataTarget";
 import { Input } from "./InputTypes";
 
 export type DataMapper = {
   
-  map: (rawData: any) => Input;
+  map: (rawData: any, crudOperation?: CrudOperation) => Input;
 };
