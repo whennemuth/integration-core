@@ -50,8 +50,8 @@
     "humanize-duration": "^3.33.2",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
-    "sqlite3": "^5.1.7",
-    "typeorm": "^0.3.27"
+    "sqlite3": "^6.0.1",
+    "typeorm": "^0.3.6"
   },
   "overrides": {
     "tar": "^7.5.6"
