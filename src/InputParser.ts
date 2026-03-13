@@ -2,6 +2,12 @@ import { hash } from "./Hash";
 import { Field, FieldDefinition, FieldSet, FieldValidator, Input } from "./InputTypes";
 import { RowValidator } from "./InputValidation";
 
+export type InputParserParms = {
+  fieldValidator?: (fieldDef: FieldDefinition, field: Field) => FieldValidator,
+  fieldFilter?: (fieldSet: FieldSet) => FieldSet,
+  _input?: Input,
+};
+
 /**
  * Represents a full set of input data with field definitions and validation.
  */
@@ -9,22 +15,18 @@ export class InputParser {
   private validRows: FieldSet[] | undefined = undefined;
   private invalidRows: FieldSet[] | undefined = undefined;
 
-  constructor(
-    private parms: {
-      fieldValidator?: (fieldDef: FieldDefinition, field: Field) => FieldValidator, 
-      _input?: Input
-    }) {
-      const { _input } = this.parms;
-      if(_input) {
-        this.parse(_input);
-      }
+  constructor(private parms: InputParserParms) {
+    const { _input } = this.parms;
+    if(_input) {
+      this.parse(_input);
     }
+  }
 
   /**
    * Validate the input data and compute hashes for valid rows.
    */
   public parse = (input?: Input): Input => {
-    let { fieldValidator, _input } = this.parms;
+    let { fieldValidator, _input, fieldFilter = (fs: FieldSet) => fs } = this.parms;
     const { fieldDefinitions, fieldSets } = _input || input || {};
     if( ! fieldDefinitions || ! fieldSets) {
       throw new Error("Input data must be provided to parse.");
@@ -46,7 +48,9 @@ export class InputParser {
       const row = fieldSets[i];
       const rowValidator = new RowValidator(fieldValidator, fieldDefinitions, row);
       if (rowValidator.isValid()) {
-        row.hash = hash(row);
+        const hashableRow = fieldFilter(row);
+        row.hashable = hashableRow;
+        row.hash = hash(hashableRow, true);
         this.validRows?.push(row);
       }
       else {

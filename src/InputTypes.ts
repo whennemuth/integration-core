@@ -40,7 +40,8 @@ export type Field = {
 
 export type FieldSet = {
   fieldValues: Field[];
-  validationMessages?: Map<string, string>;  
+  validationMessages?: Map<string, string>;
+  hashable?: FieldSet;
   hash?: string;
   pushResult?: PushResult;
 }

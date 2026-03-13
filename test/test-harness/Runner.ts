@@ -8,6 +8,7 @@ import type { RunnerConfig, RunnerParameterSet } from './RunnerParams';
 import { storagePath } from './RunnerParams';
 import { RunnerStrategy } from "./RunnerStrategy";
 import { RunnerStrategyFactory } from './RunnerStrategyFactory';
+import { FieldSet } from '../../src/InputTypes';
 
 export class DeltaStorageRunner {
 
@@ -26,12 +27,22 @@ export class DeltaStorageRunner {
     // Create a mock data target that simulates push failures for certain records
     const mockDataTarget = new MockDataTarget({ simulatedPushFailureIndexes });
 
+    const fieldFilter = (fieldSet: FieldSet): FieldSet => {
+      // Example field filter that excludes 'userId' and 'roles' from hash computation
+      const excludedFields = [ 'userId', 'roles', '__arrayFieldOperations' ];
+      return {
+        ...fieldSet,
+        fieldValues: fieldSet.fieldValues.filter(fv => !excludedFields.includes(Object.keys(fv)[0]))
+      };
+    }
+
     // Execute end-to-end data flow: fetch, compute delta, push, and store.
     await (new EndToEnd({
       dataSource: mockDataSource,
       dataMapper: mockDataMapper,
       dataTarget: mockDataTarget,
       deltaStrategy: strategy,
+      fieldFilter // Fields to exclude from hash computation
     })).execute();
 
     console.log('Test run complete.');

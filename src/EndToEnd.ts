@@ -5,7 +5,7 @@ import { DeltaStrategy } from "./delta-strategy/DeltaStrategy";
 import { isDatabaseConfig } from "./delta-strategy/DeltaStrategyParams";
 import { DeltaResult } from "./DeltaTypes";
 import { InputParser } from "./InputParser";
-import { Field, FieldDefinition, FieldValidator } from "./InputTypes";
+import { Field, FieldDefinition, FieldSet, FieldValidator } from "./InputTypes";
 import { InputUtilsDecorator } from "./InputUtils";
 import { BasicFieldValidator } from "./InputValidation";
 
@@ -16,11 +16,14 @@ export class EndToEnd {
     dataMapper: DataMapper;
     dataTarget: DataTarget; 
     deltaStrategy: DeltaStrategy; 
-    fieldValidator?: FieldValidator 
+    fieldValidator?: FieldValidator,
+    fieldFilter?: (fieldSet: FieldSet) => FieldSet
   }) { }
 
   public async execute(): Promise<void> {
-    const { dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator } = this.params;
+    const { 
+      dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator, fieldFilter = (fs: FieldSet) => fs 
+    } = this.params;
     const { storage, parms: { config, clientId }, } = deltaStrategy;
   
     // Fetch raw data from the data source
@@ -34,7 +37,9 @@ export class EndToEnd {
       fieldValidator ?? BasicFieldValidator.getInstance(fieldDef, field);
 
     // Create an input parser instance
-    const inputParser = new InputParser({ fieldValidator: fieldValidatorFactory, _input: unparsedInput });
+    const inputParser = new InputParser({ 
+      fieldValidator: fieldValidatorFactory, _input: unparsedInput, fieldFilter
+    });
 
     // Parse the Input to validate and hash records
     const parsedInput = inputParser.parse();
