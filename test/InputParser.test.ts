@@ -14,15 +14,17 @@ const createExcludeFieldsFilter = (excludeFields: string[]) => {
     if (excludeFields.length === 0) {
       return fieldSet;
     }
-    const filteredFieldValues = fieldSet.fieldValues.map(field => {
-      const filteredField: Field = {};
-      Object.keys(field).forEach(key => {
-        if (!excludeFields.includes(key)) {
-          filteredField[key] = field[key];
-        }
-      });
-      return filteredField;
-    });
+    const filteredFieldValues = fieldSet.fieldValues
+      .map(field => {
+        const filteredField: Field = {};
+        Object.keys(field).forEach(key => {
+          if (!excludeFields.includes(key)) {
+            filteredField[key] = field[key];
+          }
+        });
+        return filteredField;
+      })
+      .filter(field => Object.keys(field).length > 0); // Remove empty objects
     return { ...fieldSet, fieldValues: filteredFieldValues };
   };
 };
@@ -301,6 +303,45 @@ describe('Input Parser', () => {
       expect(hash1).toBeDefined();
       expect(hash2).toBeDefined();
       expect(hash1).toBe(hash2);
+    });
+
+    it('should ensure hashable objects do not contain nested hashable/hash properties', () => {
+      // Arrange
+      const input = {
+        fieldDefinitions: [
+          { name: 'id', type: 'number', required: true },
+          { name: 'name', type: 'string', required: true },
+          { name: 'timestamp', type: 'string', required: false }
+        ],
+        fieldSets: [
+          { fieldValues: [ { id: 1 }, { name: 'Alice' }, { timestamp: '2024-01-01' } ] }
+        ]
+      } satisfies Input;
+      const parser = new InputParser({ 
+        fieldValidator: getFieldValidator, 
+        _input: input,
+        fieldFilter: createExcludeFieldsFilter(['timestamp'])
+      });
+
+      // Act
+      const validRows = parser.getValidRows();
+      const row = validRows[0];
+
+      // Assert - the row should have hashable and hash properties
+      expect(row.hashable).toBeDefined();
+      expect(row.hash).toBeDefined();
+
+      // Assert - the hashable object should NOT contain hashable or hash properties
+      // (this prevents circular references)
+      expect(row.hashable!.hashable).toBeUndefined();
+      expect(row.hashable!.hash).toBeUndefined();
+
+      // Assert - the hashable object should only have fieldValues
+      const hashableKeys = Object.keys(row.hashable!);
+      expect(hashableKeys).toEqual(['fieldValues']);
+
+      // Assert - we can safely stringify the hashable object (no circular reference)
+      expect(() => JSON.stringify(row.hashable)).not.toThrow();
     });
   });
 

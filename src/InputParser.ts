@@ -48,7 +48,9 @@ export class InputParser {
       const row = fieldSets[i];
       const rowValidator = new RowValidator(fieldValidator, fieldDefinitions, row);
       if (rowValidator.isValid()) {
-        const hashableRow = fieldFilter(row);
+        // Create a clean copy without metadata properties to avoid circular references
+        const cleanRow: FieldSet = { fieldValues: row.fieldValues };
+        const hashableRow = fieldFilter(cleanRow);
         row.hashable = hashableRow;
         row.hash = hash(hashableRow, true);
         this.validRows?.push(row);
