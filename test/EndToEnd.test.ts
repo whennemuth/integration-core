@@ -90,9 +90,10 @@ const getMockFileDeltaStorage = (): FileDeltaStorage => {
       const mockDataMapper = getMockDataMapper();
       const unhashed = mockDataMapper.map(previousSourceData).fieldSets;
 
-      // Apply a hash to each FieldSet using Hash.ts (simulates the fetched data as already coming with hashes)
+      // Apply a hash to each FieldSet using Hash.ts with sorting enabled
+      // (must match InputParser's hashing behavior)
       return unhashed.map(fs => {
-        return { ...fs, hash: hash(fs) } satisfies FieldSet;
+        return { ...fs, hash: hash(fs, true) } satisfies FieldSet;
       });
     },
     updatePreviousData: async (params: { clientId: string, newPreviousData: FieldSet[], primaryKeyFields?: Set<string> }): Promise<any> => {
