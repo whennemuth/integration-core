@@ -277,14 +277,14 @@ const getMockDeltaStrategy = (testScenario: TestScenario) => {
         const deltaParms = {
           data: { current: computeParms.currentFieldSets, previous },
           fishOutTheUpdates: (parms: FishingParms) => {
-            return fishOutUpdatedRecordsByPK(parms, computeParms.inputUtils.getPrimaryKey());
+            return fishOutUpdatedRecordsByPK(parms, computeParms.inputUtils.getPrimaryKeys());
           }
         };
         return await deltaEngine.computeDelta(deltaParms);
       } else {
         // Database-based storage: use built-in SQL-based delta computation
         const dbStorage = mockStorage as DatabaseDeltaStorage;
-        const primaryKeyFields = computeParms.inputUtils.getPrimaryKey();
+        const primaryKeyFields = computeParms.inputUtils.getPrimaryKeys();
         await dbStorage.storeCurrentData({ 
           clientId: computeParms.clientId, 
           data: computeParms.currentFieldSets, 

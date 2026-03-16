@@ -18,7 +18,7 @@ export class InputUtilsDecorator implements Input {
     return this.input.fieldSets;
   }
   
-  public getPrimaryKey = (): Set<string> => {
+  public getPrimaryKeys = (): Set<string> => {
     const pkFields = this.fieldDefinitions.filter(fd => fd.isPrimaryKey).map(fd => fd.name);
     return new Set(pkFields);
   }
@@ -54,7 +54,7 @@ export class InputUtilsDecorator implements Input {
   }): number => {
     const { currentKeyAndHashFieldSets, previousKeyAndHashFieldSets, pushResult } = parms;
 
-    const primaryKeyFields = Array.from(this.getPrimaryKey());
+    const primaryKeyFields = Array.from(this.getPrimaryKeys());
     
     // Create a map of previous records by primary key for quick lookup
     const previousRecordsByPK = new Map<string, FieldSet>();

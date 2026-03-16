@@ -81,7 +81,7 @@ export class EndToEnd {
     });
     
     // Update storage with the new baseline data
-    const primaryKeyFields = inputUtils.getPrimaryKey();
+    const primaryKeyFields = inputUtils.getPrimaryKeys();
     await storage.updatePreviousData({ 
       clientId, newPreviousData: keyAndHashFieldSets, primaryKeyFields, failureCount
     });

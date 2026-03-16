@@ -30,7 +30,7 @@ export class DeltaStrategyForDatabase extends DeltaStrategy {
     await (dbStorage as PostgreSQLDeltaStorage).initialize();
     
     // Store current data (automatically promotes previous data)
-    const primaryKeyFields = inputUtils.getPrimaryKey();
+    const primaryKeyFields = inputUtils.getPrimaryKeys();
     await dbStorage.storeCurrentData({ clientId, data: currentFieldSets, primaryKeyFields });
     
     // Fetch computed delta

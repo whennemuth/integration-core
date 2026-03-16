@@ -29,7 +29,7 @@ export abstract class FileBasedDeltaStrategy extends DeltaStrategy {
     const deltaParms = {
       data: { current: currentFieldSets, previous },
       fishOutTheUpdates: (parms: FishingParms) => {
-        return fishOutUpdatedRecordsByPK(parms, inputUtils.getPrimaryKey());
+        return fishOutUpdatedRecordsByPK(parms, inputUtils.getPrimaryKeys());
       }
     } satisfies DeltaParms;
 

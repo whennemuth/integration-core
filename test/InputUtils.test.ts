@@ -53,9 +53,9 @@ describe('InputUtilsDecorator', () => {
     inputUtils = new InputUtilsDecorator(mockInput);
   });
 
-  describe('getPrimaryKey', () => {
+  describe('getPrimaryKeys', () => {
     it('should return a set containing all primary key field names of a composite key', () => {
-      const result = inputUtils.getPrimaryKey();
+      const result = inputUtils.getPrimaryKeys();
       
       expect(result).toBeInstanceOf(Set);
       expect(result.size).toBe(2);
@@ -76,7 +76,7 @@ describe('InputUtilsDecorator', () => {
       };
 
       const utilsWithoutPK = new InputUtilsDecorator(inputWithoutPK);
-      const result = utilsWithoutPK.getPrimaryKey();
+      const result = utilsWithoutPK.getPrimaryKeys();
 
       expect(result).toBeInstanceOf(Set);
       expect(result.size).toBe(0);
@@ -92,7 +92,7 @@ describe('InputUtilsDecorator', () => {
       };
 
       const utilsWithSinglePK = new InputUtilsDecorator(inputWithSinglePK);
-      const result = utilsWithSinglePK.getPrimaryKey();
+      const result = utilsWithSinglePK.getPrimaryKeys();
 
       expect(result).toBeInstanceOf(Set);
       expect(result.size).toBe(1);
