@@ -3,6 +3,8 @@ import { FieldSet } from '../../../InputTypes';
 import { FileSystemStreamProvider } from './FileSystemStreamProvider';
 import { NDJSONStreamProcessor, StreamProvider } from './StreamProvider';
 
+export const PREVIOUS_INPUT_FILENAME = 'previous-input.ndjson';
+
 /**
  * File-based implementation of FileDeltaStorage that stores only previous data as NDJSON (Newline Delimited JSON) 
  * files in a designated directory using streaming I/O for better performance with large datasets.
@@ -36,7 +38,7 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
    * Gets the file path for previous input data (NDJSON format)
    */
   private getPreviousInputPath(clientId: string): string {
-    return `${clientId}/previous-input.ndjson`;
+    return `${clientId}/${PREVIOUS_INPUT_FILENAME}`;
   }
 
   /**
@@ -50,6 +52,8 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
 
     try {
       const previousPath = this.getPreviousInputPath(clientId);
+
+      console.log(`Fetching previous data for client ${clientId} from path: ${previousPath}`);
       
       // Check if resource exists
       const exists = await this.streamProvider.resourceExists(previousPath);

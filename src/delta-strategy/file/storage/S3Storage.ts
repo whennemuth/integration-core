@@ -67,6 +67,8 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
 
     try {
       const previousKey = this.getPreviousInputKey(clientId);
+
+      console.log(`Fetching previous data for client ${clientId} from path: ${previousKey}`);
       
       // Check if resource exists
       const exists = await this.streamProvider.resourceExists(previousKey);

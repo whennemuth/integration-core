@@ -98,8 +98,7 @@ export class InputUtilsDecorator implements Input {
           return currentPkKey === pkKey;
         });
         if (indexToRemove >= 0) {
-          // Log removal for clarity
-          console.log(`Removing record with primary key ${pkKey} from current set to prevent new entry after push failure.`);
+          // Removing record with primary key ${pkKey} from current set to prevent new entry after push failure.
           currentKeyAndHashFieldSets.splice(indexToRemove, 1);
         }
       }
