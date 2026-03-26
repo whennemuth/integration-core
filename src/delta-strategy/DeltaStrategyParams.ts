@@ -29,6 +29,8 @@ export type DatabaseConfig = {
  */
 export type FileConfig = {
   path: string;
+  /** Technically, this function should return a value equal to path, but allows for custom output paths */
+  outputPath?: (baseName: string) => string;
 };
 
 /**
@@ -38,6 +40,8 @@ export type FileConfig = {
 export type S3Config = {
   bucketName: string;
   keyPrefix?: string;
+  /** Technically, this function should return a value equal to keyPrefix, but allows for custom output key prefixes */
+  outputKeyPrefix?: (baseName: string) => string;
   region?: string;
 };
 

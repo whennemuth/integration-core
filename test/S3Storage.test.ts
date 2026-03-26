@@ -7,6 +7,7 @@ import { EventEmitter } from 'events';
 // Mock StreamProvider for testing S3BucketDeltaStorage
 class MockS3StreamProvider extends EventEmitter implements StreamProvider {
   private storage: Map<string, string> = new Map();
+  private lastWrittenPath: string = '';
 
   async createReadStream(resourcePath: string): Promise<Readable | null> {
     if (!this.storage.has(resourcePath)) {
@@ -43,6 +44,7 @@ class MockS3StreamProvider extends EventEmitter implements StreamProvider {
       }
       // Store data before emitting finish
       mockProvider.storage.set(resourcePath, chunks.join(''));
+      mockProvider.lastWrittenPath = resourcePath; // Track last written path
       // Use setImmediate to emit finish asynchronously
       setImmediate(() => {
         writable.emit('finish');
@@ -82,8 +84,13 @@ class MockS3StreamProvider extends EventEmitter implements StreamProvider {
     return Array.from(this.storage.keys());
   }
 
+  getLastWrittenPath(): string {
+    return this.lastWrittenPath;
+  }
+
   clear(): void {
     this.storage.clear();
+    this.lastWrittenPath = '';
   }
 }
 
@@ -279,6 +286,97 @@ describe('S3BucketDeltaStorage', () => {
       expect(fetchedData).toHaveLength(1000);
       expect(fetchedData[0]).toEqual(largeData[0]);
       expect(fetchedData[999]).toEqual(largeData[999]);
+    });
+  });
+
+  describe('Custom outputKeyPrefix functionality', () => {
+    it('should use custom outputKeyPrefix function when provided', async () => {
+      const customOutputKeyPrefix = (baseName: string) => {
+        // Simulate chunked output: client-id/chunks/chunk-001.ndjson
+        return baseName.replace('previous-input.ndjson', 'chunks/chunk-001.ndjson');
+      };
+
+      const customStorage = new S3BucketDeltaStorage({
+        bucketName: 'test-bucket',
+        keyPrefix: 'test-prefix/',
+        streamProvider: mockProvider,
+        outputKeyPrefix: customOutputKeyPrefix
+      });
+
+      // Update with custom key prefix
+      await customStorage.updatePreviousData({
+        clientId: 'test-client',
+        newPreviousData: [{
+          fieldValues: [{ id: 1, name: 'Test' }],
+          hash: 'hash-test'
+        }]
+      });
+
+      // Verify data was written to custom path
+      const savedPath = mockProvider.getLastWrittenPath();
+      expect(savedPath).toContain('chunks/chunk-001.ndjson');
+      expect(savedPath).not.toContain('previous-input.ndjson');
+    });
+
+    it('should use default key when outputKeyPrefix is not provided', async () => {
+      const defaultStorage = new S3BucketDeltaStorage({
+        bucketName: 'test-bucket',
+        keyPrefix: 'test-prefix/',
+        streamProvider: mockProvider
+      });
+
+      await defaultStorage.updatePreviousData({
+        clientId: 'test-client',
+        newPreviousData: [{
+          fieldValues: [{ id: 1, name: 'Test' }],
+          hash: 'hash-test'
+        }]
+      });
+
+      // Verify data was written to default path
+      const savedPath = mockProvider.getLastWrittenPath();
+      expect(savedPath).toContain('previous-input.ndjson');
+    });
+
+    it('should support multiple chunks with different outputKeyPrefix functions', async () => {
+      const chunk1Storage = new S3BucketDeltaStorage({
+        bucketName: 'test-bucket',
+        keyPrefix: 'test-prefix/',
+        streamProvider: mockProvider,
+        outputKeyPrefix: (baseName) => baseName.replace('previous-input.ndjson', 'chunks/chunk-001.ndjson')
+      });
+
+      const chunk2Storage = new S3BucketDeltaStorage({
+        bucketName: 'test-bucket',
+        keyPrefix: 'test-prefix/',
+        streamProvider: mockProvider,
+        outputKeyPrefix: (baseName) => baseName.replace('previous-input.ndjson', 'chunks/chunk-002.ndjson')
+      });
+
+      // Write chunk 1
+      await chunk1Storage.updatePreviousData({
+        clientId: 'test-client',
+        newPreviousData: [{
+          fieldValues: [{ id: 1 }],
+          hash: 'hash-1'
+        }]
+      });
+      const path1 = mockProvider.getLastWrittenPath();
+
+      // Write chunk 2
+      await chunk2Storage.updatePreviousData({
+        clientId: 'test-client',
+        newPreviousData: [{
+          fieldValues: [{ id: 2 }],
+          hash: 'hash-2'
+        }]
+      });
+      const path2 = mockProvider.getLastWrittenPath();
+
+      // Verify different paths were used
+      expect(path1).toContain('chunk-001.ndjson');
+      expect(path2).toContain('chunk-002.ndjson');
+      expect(path1).not.toEqual(path2);
     });
   });
 });

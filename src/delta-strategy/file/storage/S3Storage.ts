@@ -6,6 +6,23 @@ import { NDJSONStreamProcessor, StreamProvider } from './StreamProvider';
 export const PREVIOUS_INPUT_FILENAME = 'previous-input.ndjson';
 
 /**
+ * Parameters for creating a new S3BucketDeltaStorage instance
+ * @param bucketName - The S3 bucket name where data files will be stored
+ * @param keyPrefix - Optional key prefix for organization (defaults to empty)
+ * @param s3Config - Optional S3 client configuration
+ * @param region - Optional AWS region (will be resolved automatically if not provided)
+ * @param streamProvider - Optional custom StreamProvider (defaults to S3StreamProvider)
+ */
+export type S3BucketDeltaStorageParams = {
+  bucketName: string, 
+  keyPrefix?: string, 
+  s3Config?: any,
+  region?: string,
+  streamProvider?: StreamProvider,
+  outputKeyPrefix?: (baseName: string) => string;
+};
+
+/**
  * S3-based implementation of FileDeltaStorage that stores only previous data as NDJSON (Newline Delimited JSON) 
  * files in an S3 bucket using streaming I/O for better performance with large datasets.
  * Each client gets its own key prefix for organization.
@@ -23,25 +40,29 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
   /**
    * Gets the S3 key for previous input data (NDJSON format)
    */
-  private getPreviousInputKey(clientId: string): string {
+  private getPreviousInputKey = (clientId: string): string => {
     return `${clientId}/${PREVIOUS_INPUT_FILENAME}`;
   }
 
   /**
-   * Creates a new S3BucketDeltaStorage instance
-   * @param bucketName - The S3 bucket name where data files will be stored
-   * @param keyPrefix - Optional key prefix for organization (defaults to empty)
-   * @param s3Config - Optional S3 client configuration
-   * @param region - Optional AWS region (will be resolved automatically if not provided)
-   * @param streamProvider - Optional custom StreamProvider (defaults to S3StreamProvider)
+   * Technically this function should return a value equal to the baseName since is simply 
+   * referring to the name of a file that will act as its replacement. But  this allows for 
+   * custom output key prefixes in case the new file is actually representing a subset of
+   * the original file and will be merged later to form the "true" previous input file.
+   * @param clientId 
+   * @returns 
    */
-  constructor(parms: {
-    bucketName: string, 
-    keyPrefix?: string, 
-    s3Config?: any,
-    region?: string,
-    streamProvider?: StreamProvider
-  }) {
+  private getNewPreviousInputKey = (clientId: string): string => {
+    const { getPreviousInputKey, parms: { outputKeyPrefix } } = this;
+    const previousKeyBase = getPreviousInputKey(clientId);
+    return outputKeyPrefix ? outputKeyPrefix(previousKeyBase) : previousKeyBase;
+  }
+
+  /**
+   * Creates a new S3BucketDeltaStorage instance
+   * @param parms - Parameters for configuring the S3 bucket storage)
+   */
+  constructor(private parms: S3BucketDeltaStorageParams) {
     const { bucketName, keyPrefix = '', s3Config, region, streamProvider } = parms;
     if (!bucketName) {
       throw new Error('S3 bucket name is required');
@@ -102,7 +123,7 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
     }
 
     try {
-      const previousKey = this.getPreviousInputKey(clientId);
+      const previousKey = this.getNewPreviousInputKey(clientId);
       
       if (newPreviousData.length > 0) {
         // Store the new data as the updated previous input

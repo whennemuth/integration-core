@@ -2,7 +2,7 @@ import { BruteForceDeltaEngine, fishOutUpdatedRecordsByPK } from "../DeltaByBrut
 import { DeltaParms, DeltaStorage, FishingParms } from "../../DeltaTypes";
 import { InputUtilsDecorator } from "../../InputUtils";
 import { FileSystemDeltaStorage } from "./storage/FileStorage";
-import { S3BucketDeltaStorage } from "./storage/S3Storage";
+import { S3BucketDeltaStorage, S3BucketDeltaStorageParams } from "./storage/S3Storage";
 import { DeltaStrategy } from '../DeltaStrategy';
 import { FileConfig } from "../DeltaStrategyParams";
 
@@ -43,8 +43,8 @@ export abstract class FileBasedDeltaStrategy extends DeltaStrategy {
  */
 export class DeltaStrategyForFileSystem extends FileBasedDeltaStrategy {
   public get storage(): DeltaStorage {
-    const { path } = this.parms.config as FileConfig;
-    return new FileSystemDeltaStorage(path);
+    const { path, outputPath } = this.parms.config as FileConfig;
+    return new FileSystemDeltaStorage({ storagePath: path, outputPath });
   }
 }
 
@@ -54,11 +54,12 @@ export class DeltaStrategyForFileSystem extends FileBasedDeltaStrategy {
 export class DeltaStrategyForS3Bucket extends FileBasedDeltaStrategy {
   
   public get storage(): DeltaStorage {
-    const config = this.parms.config as any; // We know it's S3Config from factory
+    const { bucketName, keyPrefix, outputKeyPrefix, region } = this.parms.config as S3BucketDeltaStorageParams; // We know it's S3Config from factory
     return new S3BucketDeltaStorage({
-      bucketName: config.bucketName,
-      keyPrefix: config.keyPrefix || `test-datasets/${this.parms.clientId}`,
-      region: config.region
+      bucketName,
+      keyPrefix: keyPrefix || `test-datasets/${this.parms.clientId}`,
+      outputKeyPrefix,
+      region
     });
   }
 }

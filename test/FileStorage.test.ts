@@ -8,6 +8,7 @@ import { EventEmitter } from 'events';
 class MockFileSystemStreamProvider extends EventEmitter implements StreamProvider {
   private storage: Map<string, string> = new Map();
   private errors: Map<string, Error> = new Map();
+  private lastWrittenPath: string = '';
 
   setError(operation: string, error: Error): void {
     this.errors.set(operation, error);
@@ -70,6 +71,7 @@ class MockFileSystemStreamProvider extends EventEmitter implements StreamProvide
       }
       // Store data before emitting finish
       mockProvider.storage.set(resourcePath, chunks.join(''));
+      mockProvider.lastWrittenPath = resourcePath; // Track last written path
       // Use setImmediate to emit finish asynchronously
       setImmediate(() => {
         writable.emit('finish');
@@ -132,10 +134,14 @@ class MockFileSystemStreamProvider extends EventEmitter implements StreamProvide
   getAllStoredPaths(): string[] {
     return Array.from(this.storage.keys());
   }
+getLastWrittenPath(): string {
+    return this.lastWrittenPath;
+  }
 
   clear(): void {
     this.storage.clear();
     this.errors.clear();
+    this.lastWrittenPath = '';
   }
 }
 
@@ -167,7 +173,7 @@ describe('FileSystemDeltaStorage', () => {
 
   beforeEach(() => {
     mockProvider = new MockFileSystemStreamProvider();
-    storage = new FileSystemDeltaStorage(testStoragePath, mockProvider);
+    storage = new FileSystemDeltaStorage({ storagePath: testStoragePath, streamProvider: mockProvider });
   });
 
   afterEach(() => {
@@ -182,7 +188,7 @@ describe('FileSystemDeltaStorage', () => {
 
     it('should throw error with empty storage path', () => {
       expect(() => {
-        new FileSystemDeltaStorage('');
+        new FileSystemDeltaStorage({ storagePath: '' });
       }).toThrow('Storage path is required');
     });
   });
@@ -310,6 +316,85 @@ describe('FileSystemDeltaStorage', () => {
       expect(fetchedData).toHaveLength(1000);
       expect(fetchedData[0]).toEqual(largeData[0]);
       expect(fetchedData[999]).toEqual(largeData[999]);
+    });
+  });
+
+  describe('Custom outputPath functionality', () => {
+    it('should use custom outputPath function when provided', async () => {
+      const customOutputPath = (baseName: string) => {
+        // Simulate chunked output: client-id/chunks/chunk-001.ndjson
+        return baseName.replace('previous-input.ndjson', 'chunks/chunk-001.ndjson');
+      };
+
+      const customStorage = new FileSystemDeltaStorage({
+        storagePath: testStoragePath,
+        streamProvider: mockProvider,
+        outputPath: customOutputPath
+      });
+
+      // Update with custom path
+      await customStorage.updatePreviousData({
+        clientId: testClientId,
+        newPreviousData: [testFieldSets[0]]
+      });
+
+      // Verify data was written to custom path
+      const savedPath = mockProvider.getLastWrittenPath();
+      expect(savedPath).toContain('chunks/chunk-001.ndjson');
+      expect(savedPath).not.toContain('previous-input.ndjson');
+
+      // Verify data can still be fetched from original path (fetch uses original logic)
+      const fetchedData = await storage.fetchPreviousData({ clientId: testClientId });
+      expect(fetchedData).toEqual([]);  // Original storage doesn't have data at standard path
+    });
+
+    it('should use default path when outputPath is not provided', async () => {
+      const defaultStorage = new FileSystemDeltaStorage({
+        storagePath: testStoragePath,
+        streamProvider: mockProvider
+      });
+
+      await defaultStorage.updatePreviousData({
+        clientId: testClientId,
+        newPreviousData: [testFieldSets[0]]
+      });
+
+      // Verify data was written to default path
+      const savedPath = mockProvider.getLastWrittenPath();
+      expect(savedPath).toContain('previous-input.ndjson');
+    });
+
+    it('should support multiple chunks with different outputPath functions', async () => {
+      const chunk1Storage = new FileSystemDeltaStorage({
+        storagePath: testStoragePath,
+        streamProvider: mockProvider,
+        outputPath: (baseName) => baseName.replace('previous-input.ndjson', 'chunks/chunk-001.ndjson')
+      });
+
+      const chunk2Storage = new FileSystemDeltaStorage({
+        storagePath: testStoragePath,
+        streamProvider: mockProvider,
+        outputPath: (baseName) => baseName.replace('previous-input.ndjson', 'chunks/chunk-002.ndjson')
+      });
+
+      // Write chunk 1
+      await chunk1Storage.updatePreviousData({
+        clientId: testClientId,
+        newPreviousData: [testFieldSets[0]]
+      });
+      const path1 = mockProvider.getLastWrittenPath();
+
+      // Write chunk 2
+      await chunk2Storage.updatePreviousData({
+        clientId: testClientId,
+        newPreviousData: [testFieldSets[1]]
+      });
+      const path2 = mockProvider.getLastWrittenPath();
+
+      // Verify different paths were used
+      expect(path1).toContain('chunk-001.ndjson');
+      expect(path2).toContain('chunk-002.ndjson');
+      expect(path1).not.toEqual(path2);
     });
   });
 });

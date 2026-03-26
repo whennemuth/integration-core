@@ -6,6 +6,16 @@ import { NDJSONStreamProcessor, StreamProvider } from './StreamProvider';
 export const PREVIOUS_INPUT_FILENAME = 'previous-input.ndjson';
 
 /**
+ * @param storagePath - The directory path where data files will be stored
+ * @param streamProvider - Optional custom StreamProvider (defaults to FileSystemStreamProvider)
+ */
+export type FileSystemDeltaStorageParams = {
+  storagePath: string, 
+  streamProvider?: StreamProvider,
+  outputPath?: (baseName: string) => string;
+};
+
+/**
  * File-based implementation of FileDeltaStorage that stores only previous data as NDJSON (Newline Delimited JSON) 
  * files in a designated directory using streaming I/O for better performance with large datasets.
  * Each client gets its own subdirectory for organization.
@@ -22,10 +32,10 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
 
   /**
    * Creates a new FileSystemDeltaStorage instance
-   * @param storagePath - The directory path where data files will be stored
-   * @param streamProvider - Optional custom StreamProvider (defaults to FileSystemStreamProvider)
+   * @param parms - Parameters for configuring the file system storage
    */
-  constructor(storagePath: string, streamProvider?: StreamProvider) {
+  constructor(private parms: FileSystemDeltaStorageParams) {
+    const { storagePath, streamProvider } = parms;
     if (!storagePath) {
       throw new Error('Storage path is required');
     }
@@ -37,8 +47,22 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
   /**
    * Gets the file path for previous input data (NDJSON format)
    */
-  private getPreviousInputPath(clientId: string): string {
+  private getPreviousInputPath = (clientId: string): string => {
     return `${clientId}/${PREVIOUS_INPUT_FILENAME}`;
+  }
+
+  /**
+   * Technically this function should return a value equal to the baseName since is simply 
+   * referring to the name of a file that will act as its replacement. But  this allows for 
+   * custom output key prefixes in case the new file is actually representing a subset of
+   * the original file and will be merged later to form the "true" previous input file.
+   * @param clientId 
+   * @returns 
+   */
+  private getNewPreviousInputKey = (clientId: string): string => {
+    const { getPreviousInputPath, parms: { outputPath } } = this;
+    const previousKeyBase = getPreviousInputPath(clientId);
+    return outputPath ? outputPath(previousKeyBase) : previousKeyBase;
   }
 
   /**
@@ -87,7 +111,7 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
     }
 
     try {
-      const previousPath = this.getPreviousInputPath(clientId);
+      const previousPath = this.getNewPreviousInputKey(clientId);
       
       if (newPreviousData.length > 0) {
         // Store the new data as the updated previous input

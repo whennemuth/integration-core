@@ -1,7 +1,8 @@
 import { DeltaStrategyForDatabase } from "../../src/delta-strategy/db/RunnerStrategyForDatabase";
 import { DeltaStrategy } from "../../src/delta-strategy/DeltaStrategy";
+import { FileConfig } from "../../src/delta-strategy/DeltaStrategyParams";
 import { DeltaStrategyForFileSystem, DeltaStrategyForS3Bucket } from "../../src/delta-strategy/file/RunnerStrategyForFile";
-import { FileSystemDeltaStorage } from "../../src/delta-strategy/file/storage/FileStorage";
+import { FileSystemDeltaStorage, FileSystemDeltaStorageParams } from "../../src/delta-strategy/file/storage/FileStorage";
 import { DeltaStorage } from "../../src/DeltaTypes";
 import { InputUtilsDecorator } from "../../src/InputUtils";
 import { DatabaseConfig, RunnerStrategyParms, storagePath } from "./RunnerParams";
@@ -11,7 +12,7 @@ import { sqlLiteDbFileAbsolutePath } from "./SqlLiteDb";
  * Abstract decorator class of DeltaStrategy for RunnerStrategy implementations
  */
 export abstract class RunnerStrategy extends DeltaStrategy {
-  constructor(public parms: RunnerStrategyParms, private baseStrategy: DeltaStrategy) { 
+  constructor(public parms: RunnerStrategyParms, public baseStrategy: DeltaStrategy) { 
     super(parms);
   }
   public computeDelta(computeParms: { storage: DeltaStorage; currentFieldSets: any[]; inputUtils: InputUtilsDecorator; clientId: string; }): Promise<any> {
@@ -30,7 +31,8 @@ export class RunnerStrategyForFileSystem extends RunnerStrategy {
     super(parms, baseStrategy);
   }
   public get storage(): DeltaStorage {
-    return new FileSystemDeltaStorage(storagePath);
+    const { path, outputPath } = super.baseStrategy.parms.config as FileConfig;
+    return new FileSystemDeltaStorage({ storagePath: path, outputPath });
   }
 }
 
