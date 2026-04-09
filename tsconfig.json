@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "module": "CommonJS",
+    "module": "node20",
     "lib": [ "ES5", "ES6", "ES2016", "ES2017", "ES2022" ],
     "declaration": true,
     "declarationDir": "./dist/types",
@@ -22,7 +22,8 @@
     "typeRoots": [
       "./node_modules/@types"
     ],
-    "moduleResolution": "Node",
+    "types": ["jest", "node"],
+    "moduleResolution": "node16",
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
