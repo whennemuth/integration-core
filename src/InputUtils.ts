@@ -52,7 +52,23 @@ export class InputUtilsDecorator implements Input {
     previousKeyAndHashFieldSets: FieldSet[], 
     pushResult: BatchPushResult
   }): number => {
-    const { currentKeyAndHashFieldSets, previousKeyAndHashFieldSets, pushResult } = parms;
+    const { currentKeyAndHashFieldSets, previousKeyAndHashFieldSets, pushResult, pushResult: { 
+      failures, status, message, successes, timestamp 
+    } } = parms;
+
+    const info = {
+      currentKeyAndHashFieldSets: `${currentKeyAndHashFieldSets.length} records`,
+      previousKeyAndHashFieldSets: `${previousKeyAndHashFieldSets.length} records`,
+      pushResult: {
+        failures: failures ? `${failures.length} failures` : '0 failures',
+        status,
+        message,
+        successes: successes ? `${successes.length} successes` : '0 successes',
+        timestamp
+      }
+    }
+
+    console.log(`restorePreviousHashesForFailures: ${JSON.stringify(info)}`);
 
     const primaryKeyFields = Array.from(this.getPrimaryKeys());
     

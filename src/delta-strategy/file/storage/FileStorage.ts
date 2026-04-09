@@ -83,12 +83,14 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
       const exists = await this.streamProvider.resourceExists(previousPath);
       if (!exists) {
         // No previous data exists yet
+        console.log(`No previous data found for client ${clientId} at path: ${previousPath}`);
         return [];
       }
 
       // Create read stream and use the stream processor to read NDJSON data
       const readStream = await this.streamProvider.createReadStream(previousPath);
       if (!readStream) {
+        console.log(`Failed to create read stream for previous data of client ${clientId} at path: ${previousPath}`);
         return [];
       }
       return await this.streamProcessor.readFieldSets(readStream);
@@ -112,20 +114,25 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
 
     try {
       const previousPath = this.getNewPreviousInputKey(clientId);
+      console.log(`Updating previous data for client ${clientId} at path: ${previousPath}`);
       
       if (newPreviousData.length > 0) {
+        console.log(`Storing ${newPreviousData.length} records as new previous data for client ${clientId} at path: ${previousPath}`);
+
         // Store the new data as the updated previous input
         await this.streamProvider.ensureParent(previousPath);
         const writeStream = await this.streamProvider.createWriteStream(previousPath);
         await this.streamProcessor.writeFieldSets(writeStream, newPreviousData);
         
-        return {
+        const retval = {
           status: 'success',
           message: `Updated previous input for client ${clientId}`,
           action: 'stored new baseline data',
           recordCount: newPreviousData.length,
           timestamp: new Date().toISOString()
         };
+        console.log(`✓ ${JSON.stringify(retval)} at path: ${previousPath}`);
+        return retval;
       } else {
         // No new data provided, this might be a cleanup operation
         const previousExists = await this.streamProvider.resourceExists(previousPath);
@@ -133,12 +140,14 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
           await this.streamProvider.deleteResource(previousPath);
         }
         
-        return {
+        const retval = {
           status: 'success',
           message: `Cleaned up previous input for client ${clientId}`,
           action: 'removed existing previous input',
           timestamp: new Date().toISOString()
         };
+        console.log(`✓ ${JSON.stringify(retval)} at path: ${previousPath}`);
+        return retval;
       }
     } catch (error) {
       throw new Error(`Failed to update previous input for client ${clientId}: ${error}`);

@@ -95,12 +95,14 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
       const exists = await this.streamProvider.resourceExists(previousKey);
       if (!exists) {
         // No previous data exists yet
+        console.log(`No previous data found for client ${clientId} at path: ${previousKey}`);
         return [];
       }
 
       // Create read stream and use the stream processor to read NDJSON data
       const readStream = await this.streamProvider.createReadStream(previousKey);
       if (!readStream) {
+        console.warn(`Failed to create read stream for previous data of client ${clientId} at path: ${previousKey}`);
         return [];
       }
       return await this.streamProcessor.readFieldSets(readStream);
@@ -124,14 +126,17 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
 
     try {
       const previousKey = this.getNewPreviousInputKey(clientId);
+      console.log(`Updating previous data for client ${clientId} at path: ${previousKey}`);
       
       if (newPreviousData.length > 0) {
+        console.log(`Storing ${newPreviousData.length} records as new previous data for client ${clientId} at path: ${previousKey}`);
+
         // Store the new data as the updated previous input
         await this.streamProvider.ensureParent(previousKey);
         const writeStream = await this.streamProvider.createWriteStream(previousKey);
         await this.streamProcessor.writeFieldSets(writeStream, newPreviousData);
         
-        return {
+        const retval = {
           status: 'success',
           message: `Updated previous input for client ${clientId}`,
           action: 'stored new baseline data',
@@ -139,20 +144,27 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
           storage: 's3',
           timestamp: new Date().toISOString()
         };
+        console.log(`✓ ${JSON.stringify(retval)} at path: ${previousKey}`);
+        return retval;
       } else {
+        console.log(`No new data provided for client ${clientId}. Proceeding to clean up previous data at path: ${previousKey} if it exists.`);
+        
         // No new data provided, this might be a cleanup operation
         const previousExists = await this.streamProvider.resourceExists(previousKey);
         if (previousExists) {
+          console.log(`Cleaning up previous data for client ${clientId} at path: ${previousKey}`);
           await this.streamProvider.deleteResource(previousKey);
         }
         
-        return {
+        const retval = {
           status: 'success',
           message: `Cleaned up previous input for client ${clientId}`,
           action: 'removed existing previous input',
           storage: 's3',
           timestamp: new Date().toISOString()
         };
+        console.log(`✓ ${JSON.stringify(retval)} at path: ${previousKey}`);
+        return retval;
       }
     } catch (error) {
       throw new Error(`Failed to update previous input for client ${clientId}: ${error}`);
