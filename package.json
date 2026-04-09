@@ -26,6 +26,7 @@
     "build:cjs": "tsc --module CommonJS --outdir dist/cjs",
     "pack": "npm run build && npm pack --pack-destination .",
     "publish": "npm run pack && npm publish ./integration-core-1.0.0.tgz",
+    "publish-s3": "npm run pack && aws s3 cp integration-core-1.0.0.tgz s3://simple-npm-package-bucket/",
     "watch": "tsc -w",
     "test": "jest --silent",
     "test-harness": "ts-node ./test/test-harness/Runner.ts",
