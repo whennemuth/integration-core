@@ -37,7 +37,7 @@ export class DeltaStorageRunner {
     }
 
     // Execute end-to-end data flow: fetch, compute delta, push, and store.
-    await (new EndToEnd({
+    const result = await (new EndToEnd({
       dataSource: mockDataSource,
       dataMapper: mockDataMapper,
       dataTarget: mockDataTarget,
@@ -45,6 +45,12 @@ export class DeltaStorageRunner {
       fieldFilter // Fields to exclude from hash computation
     })).execute();
 
+    console.log('\n=== Integration Result ===');
+    console.log(`Total Processed: ${result.totalProcessed}`);
+    console.log(`Success Count: ${result.successCount}`);
+    console.log(`Failure Count: ${result.failureCount}`);
+    console.log(`Added: ${result.addedCount}, Updated: ${result.updatedCount}, Removed: ${result.removedCount}`);
+    console.log(`Duration: ${result.duration}ms`);
     console.log('Test run complete.');
   }
 }

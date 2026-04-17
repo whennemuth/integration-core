@@ -3,7 +3,7 @@ export * from '../src/DataSource';
 export * from '../src/DataMapper';
 export * from '../src/DataTarget';
 export * from '../src/DeltaTypes';
-export { EndToEnd } from '../src/EndToEnd';
+export { EndToEnd, IntegrationResult } from '../src/EndToEnd';
 export * from '../src/InputParser';
 export * from '../src/InputTypes';
 export * from '../src/InputUtils';

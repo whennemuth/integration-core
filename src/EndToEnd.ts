@@ -1,6 +1,6 @@
 import { DataMapper } from "./DataMapper";
 import { DataSource } from "./DataSource";
-import { DataTarget, PushAllParms } from "./DataTarget";
+import { DataTarget, PushAllParms, SinglePushResult } from "./DataTarget";
 import { DeltaStrategy } from "./delta-strategy/DeltaStrategy";
 import { isDatabaseConfig } from "./delta-strategy/DeltaStrategyParams";
 import { DeltaResult } from "./DeltaTypes";
@@ -8,6 +8,41 @@ import { InputParser } from "./InputParser";
 import { Field, FieldDefinition, FieldSet, FieldValidator } from "./InputTypes";
 import { InputUtilsDecorator } from "./InputUtils";
 import { BasicFieldValidator } from "./InputValidation";
+
+/**
+ * Statistics returned from EndToEnd integration execution
+ */
+export interface IntegrationResult {
+  /** Total number of records processed (successfully pushed + failed) */
+  totalProcessed: number;
+  
+  /** Number of records successfully pushed to target */
+  successCount: number;
+  
+  /** Number of records that failed to push */
+  failureCount: number;
+  
+  /** Number of records added (from delta computation) */
+  addedCount: number;
+  
+  /** Number of records updated (from delta computation) */
+  updatedCount: number;
+  
+  /** Number of records removed (from delta computation) */
+  removedCount: number;
+  
+  /** Optional: timestamp when execution completed */
+  timestamp?: Date;
+  
+  /** Optional: execution duration in milliseconds */
+  duration?: number;
+  
+  /** Optional: detailed success results */
+  successes?: SinglePushResult[];
+  
+  /** Optional: detailed failure results */
+  failures?: SinglePushResult[];
+}
 
 export class EndToEnd {
 
@@ -20,7 +55,9 @@ export class EndToEnd {
     fieldFilter?: (fieldSet: FieldSet) => FieldSet
   }) { }
 
-  public async execute(): Promise<void> {
+  public async execute(): Promise<IntegrationResult> {
+    const startTime = Date.now();
+    
     const { 
       dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator, fieldFilter = (fs: FieldSet) => fs 
     } = this.params;
@@ -57,10 +94,20 @@ export class EndToEnd {
       inputUtils,
       clientId
     });
+    
     // If no changes detected, exit early
     if (delta.added.length === 0 && (delta.updated ?? []).length === 0 && delta.removed.length === 0) {
       console.log('No changes detected; skipping push and storage update.');
-      return;
+      return {
+        totalProcessed: 0,
+        successCount: 0,
+        failureCount: 0,
+        addedCount: 0,
+        updatedCount: 0,
+        removedCount: 0,
+        timestamp: new Date(),
+        duration: Date.now() - startTime
+      };
     }
 
     // Push delta to data target
@@ -85,5 +132,22 @@ export class EndToEnd {
     await storage.updatePreviousData({ 
       clientId, newPreviousData: keyAndHashFieldSets, primaryKeyFields, failureCount
     });
+
+    // Calculate and return statistics
+    const successCount = pushResult.successes?.length ?? 0;
+    const failureCountFromPush = pushResult.failures?.length ?? 0;
+    
+    return {
+      totalProcessed: successCount + failureCountFromPush,
+      successCount,
+      failureCount: failureCountFromPush,
+      addedCount: delta.added.length,
+      updatedCount: delta.updated?.length ?? 0,
+      removedCount: delta.removed.length,
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      successes: pushResult.successes,
+      failures: pushResult.failures
+    };
   }
 }

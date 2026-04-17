@@ -4,7 +4,7 @@ import { BasicPushAllOperation, BatchPushResult, BatchStatus, DataTarget, PushAl
 import { BruteForceDeltaEngine, fishOutUpdatedRecordsByPK } from '../src/delta-strategy/DeltaByBruteForce';
 import { DeltaStrategyParams } from '../src/delta-strategy/DeltaStrategyParams';
 import { DatabaseDeltaStorage, DeltaResult, FileDeltaStorage, FishingParms } from '../src/DeltaTypes';
-import { EndToEnd } from '../src/EndToEnd';
+import { EndToEnd, IntegrationResult } from '../src/EndToEnd';
 import { hash } from '../src/Hash';
 import { Field, FieldSet, Input } from '../src/InputTypes';
 
@@ -310,7 +310,11 @@ const getMockDeltaStrategy = (testScenario: TestScenario) => {
 
 describe('EndToEnd', () => {
 
-  const getDeltaResult = async (testScenario: TestScenario): Promise<{ deltaResult: DeltaResult, pushResult: PushResult }> => {
+  const getDeltaResult = async (testScenario: TestScenario): Promise<{ 
+    deltaResult: DeltaResult, 
+    pushResult: PushResult,
+    integrationResult: IntegrationResult 
+  }> => {
     // Create mock components
     const dataSource: DataSource = getMockDataSource();
     const dataTarget: DataTarget = getMockDataTarget();
@@ -340,9 +344,13 @@ describe('EndToEnd', () => {
       deltaStrategy
     });
 
-    await endToEnd.execute();
+    const integrationResult = await endToEnd.execute();
 
-    return { deltaResult: capturedDelta!, pushResult: capturedPushResult! };
+    return { 
+      deltaResult: capturedDelta!, 
+      pushResult: capturedPushResult!,
+      integrationResult 
+    };
   }
 
   const defaultDeltaResultAssertions = (deltaResult: DeltaResult) => {
@@ -395,32 +403,60 @@ describe('EndToEnd', () => {
     }
   }
 
+  const defaultVerifyIntegrationResult = (integrationResult: IntegrationResult) => {
+    return {
+      assert: () => {
+        // Verify counts match expected results (1 added, 2 updated, 2 removed)
+        expect(integrationResult.addedCount).toBe(1);    // Ethan
+        expect(integrationResult.updatedCount).toBe(2);  // Charlie, Diana
+        expect(integrationResult.removedCount).toBe(2);  // Jane, Kyle
+        
+        // Verify push success/failure counts (4 successes, 1 failure based on mock)
+        expect(integrationResult.successCount).toBe(4);  // Ethan, Charlie, Jane, Kyle
+        expect(integrationResult.failureCount).toBe(1);  // Diana (every 3rd record fails in mock)
+        expect(integrationResult.totalProcessed).toBe(5); // Sum of successes and failures
+        
+        // Verify optional fields are present
+        expect(integrationResult.timestamp).toBeInstanceOf(Date);
+        expect(integrationResult.duration).toBeGreaterThanOrEqual(0);
+        expect(integrationResult.successes).toHaveLength(4);
+        expect(integrationResult.failures).toHaveLength(1);
+      }
+    }
+  }
+
   it('should compute a delta from previous and current inputs', async () => {
 
-    const { deltaResult, pushResult } = await getDeltaResult(TestScenario.BRUTE_FORCE);
+    const { deltaResult, pushResult, integrationResult } = await getDeltaResult(TestScenario.BRUTE_FORCE);
 
     defaultDeltaResultAssertions(deltaResult).assert();
 
     defaultVerifyPushResult(pushResult).assert();
+    
+    defaultVerifyIntegrationResult(integrationResult).assert();
   });
 
   it(`should "fish" out updated records from the "new" records of a delta that was computed 
     by delta storage (ie: database view)`, async () => {
 
-    const { deltaResult, pushResult } = await getDeltaResult(TestScenario.DATABASE_BASIC);
+    const { deltaResult, pushResult, integrationResult } = await getDeltaResult(TestScenario.DATABASE_BASIC);
 
     defaultDeltaResultAssertions(deltaResult).assert();
 
     defaultVerifyPushResult(pushResult).assert();
+    
+    defaultVerifyIntegrationResult(integrationResult).assert();
   });
 
   it(`should simply report output of records of a delta that was computed by delta storage that 
     includes added/updated separation (ie: database view)`, async () => {
 
-    const { deltaResult, pushResult } = await getDeltaResult(TestScenario.DATABASE_WITH_UPDATES);
+    const { deltaResult, pushResult, integrationResult } = await getDeltaResult(TestScenario.DATABASE_WITH_UPDATES);
 
     defaultDeltaResultAssertions(deltaResult).assert();
 
     defaultVerifyPushResult(pushResult).assert();
+    
+    defaultVerifyIntegrationResult(integrationResult).assert();
   });
 });
