@@ -285,8 +285,8 @@ export class PostgreSQLDeltaStorage implements DatabaseDeltaStorage {
    * For database storage, this replaces both previous and current tables with the provided data
    * to ensure they remain in sync and prevent failed records from persisting.
    */
-  async updatePreviousData(params: { clientId: string, newPreviousData: FieldSet[], primaryKeyFields?: Set<string>, failureCount?: number }): Promise<any> {
-    const { clientId, newPreviousData, primaryKeyFields, failureCount = 0 } = params;
+  async updatePreviousData(params: { clientId: string, newPreviousData: FieldSet[], primaryKeyFields?: Set<string>, failureCount?: number, cleanup?: boolean }): Promise<any> {
+    const { clientId, newPreviousData, primaryKeyFields, failureCount = 0, cleanup = true } = params;
     if (!clientId) {
       throw new Error('clientId is required for updatePreviousData');
     }

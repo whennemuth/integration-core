@@ -52,14 +52,16 @@ export class EndToEnd {
     dataTarget: DataTarget; 
     deltaStrategy: DeltaStrategy; 
     fieldValidator?: FieldValidator,
-    fieldFilter?: (fieldSet: FieldSet) => FieldSet
+    fieldFilter?: (fieldSet: FieldSet) => FieldSet,
+    cleanupPreviousData?: boolean
   }) { }
 
   public async execute(): Promise<IntegrationResult> {
     const startTime = Date.now();
     
     const { 
-      dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator, fieldFilter = (fs: FieldSet) => fs 
+      dataSource, dataMapper,dataTarget, deltaStrategy, fieldValidator, 
+      fieldFilter = (fs: FieldSet) => fs, cleanupPreviousData = false
     } = this.params;
     const { storage, parms: { config, clientId }, } = deltaStrategy;
   
@@ -129,8 +131,10 @@ export class EndToEnd {
     
     // Update storage with the new baseline data
     const primaryKeyFields = inputUtils.getPrimaryKeys();
-    await storage.updatePreviousData({ 
-      clientId, newPreviousData: keyAndHashFieldSets, primaryKeyFields, failureCount
+    await storage.updatePreviousData({
+      // NOTE: A previous data file may not exist, in which case this is not really an update.
+      clientId, newPreviousData: keyAndHashFieldSets, primaryKeyFields, failureCount, 
+      cleanup: cleanupPreviousData
     });
 
     // Calculate and return statistics

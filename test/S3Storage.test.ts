@@ -179,11 +179,21 @@ describe('S3BucketDeltaStorage', () => {
       );
     });
 
-    it('should handle case when no new data provided (cleanup previous)', async () => {
-      const result = await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: [] });
+    it('should handle case when no new data provided with cleanup=true (default)', async () => {
+      const result = await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: [], cleanup: true });
       
       expect(result.status).toBe('success');
       expect(result.message).toContain('Cleaned up previous input');
+      expect(result.action).toContain('removed existing previous input');
+      expect(result.storage).toBe('s3');
+    });
+
+    it('should handle case when no new data provided with cleanup=false', async () => {
+      const result = await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: [], cleanup: false });
+      
+      expect(result.status).toBe('success');
+      expect(result.message).toContain('Baseline update skipped');
+      expect(result.action).toContain('delta files preserved');
       expect(result.storage).toBe('s3');
     });
 
@@ -251,8 +261,8 @@ describe('S3BucketDeltaStorage', () => {
       const client2Previous = await deltaStorage.fetchPreviousData({ clientId: 'client2' });
       expect(client2Previous).toEqual(client2Data);
       
-      // Clear client1 previous data
-      await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: [] });
+      // Clear client1 previous data with cleanup=true (default behavior)
+      await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: [], cleanup: true });
       expect(await mockProvider.resourceExists('client1/previous-input.ndjson')).toBe(false);
       
       // Client2 should still have its data

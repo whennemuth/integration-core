@@ -18,14 +18,15 @@ export interface DeltaStorage {
   /**
    * Use this to update the previous data baseline AFTER the computed delta 
    * has been pushed to the target.
-   * @param params Parameters object containing clientId, newPreviousData, optional primaryKeyFields, and optional failureCount
+   * @param params Parameters object containing clientId, newPreviousData, optional primaryKeyFields, optional failureCount, and optional cleanup flag
    * @returns Promise that resolves when the update is complete
    */
   updatePreviousData(params: { 
     clientId: string, 
     newPreviousData: FieldSet[], 
     primaryKeyFields?: Set<string>, 
-    failureCount?: number 
+    failureCount?: number,
+    cleanup?: boolean
   }): Promise<any>;
 }
 

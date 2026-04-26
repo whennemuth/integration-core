@@ -118,8 +118,8 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
    * In S3-based storage, this is called after a successful push to update the baseline
    * for the next delta computation.
    */
-  public async updatePreviousData(params: { clientId: string, newPreviousData: FieldSet[], primaryKeyFields?: Set<string> }): Promise<any> {
-    const { clientId, newPreviousData, primaryKeyFields } = params;
+  public async updatePreviousData(params: { clientId: string, newPreviousData: FieldSet[], primaryKeyFields?: Set<string>, cleanup?: boolean }): Promise<any> {
+    const { clientId, newPreviousData, primaryKeyFields, cleanup = true } = params;
     if (!clientId) {
       throw new Error('clientId is required for updatePreviousData');
     }
@@ -147,24 +147,37 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
         console.log(`✓ ${JSON.stringify(retval)} at path: ${previousKey}`);
         return retval;
       } else {
-        console.log(`No new data provided for client ${clientId}. Proceeding to clean up previous data at path: ${previousKey} if it exists.`);
+        console.log(`No new data provided for client ${clientId}.`);
         
-        // No new data provided, this might be a cleanup operation
-        const previousExists = await this.streamProvider.resourceExists(previousKey);
-        if (previousExists) {
-          console.log(`Cleaning up previous data for client ${clientId} at path: ${previousKey}`);
-          await this.streamProvider.deleteResource(previousKey);
+        if (cleanup) {
+          const previousExists = await this.streamProvider.resourceExists(previousKey);
+          if (previousExists) {
+            console.log(`Cleaning up previous data for client ${clientId} at path: ${previousKey}`);
+            await this.streamProvider.deleteResource(previousKey);
+          }
+          
+          const retval = {
+            status: 'success',
+            message: `Cleaned up previous input for client ${clientId}`,
+            action: 'removed existing previous input',
+            storage: 's3',
+            timestamp: new Date().toISOString()
+          };
+          console.log(`✓ ${JSON.stringify(retval)}`);
+          return retval;
+        } else {
+          console.log(`Cleanup skipped - delta files preserved`);
+          
+          const retval = {
+            status: 'success',
+            message: `Baseline update skipped for client ${clientId} (no new data)`,
+            action: 'delta files preserved',
+            storage: 's3',
+            timestamp: new Date().toISOString()
+          };
+          console.log(`✓ ${JSON.stringify(retval)}`);
+          return retval;
         }
-        
-        const retval = {
-          status: 'success',
-          message: `Cleaned up previous input for client ${clientId}`,
-          action: 'removed existing previous input',
-          storage: 's3',
-          timestamp: new Date().toISOString()
-        };
-        console.log(`✓ ${JSON.stringify(retval)} at path: ${previousKey}`);
-        return retval;
       }
     } catch (error) {
       throw new Error(`Failed to update previous input for client ${clientId}: ${error}`);
