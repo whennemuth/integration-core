@@ -86,6 +86,7 @@ export class S3StreamProvider implements StreamProvider {
     
     try {
       // First check if object exists
+      console.log(`Checking existence of resource at s3://${this.bucketName}/${key}...`);
       const headCommand = new HeadObjectCommand({ 
         Bucket: this.bucketName, 
         Key: key 
@@ -93,6 +94,7 @@ export class S3StreamProvider implements StreamProvider {
       await this.s3.send(headCommand);
       
       // Object exists, create read stream
+      console.log(`Reading resource at s3://${this.bucketName}/${key}...`);
       const getCommand = new GetObjectCommand({ 
         Bucket: this.bucketName, 
         Key: key 
@@ -116,6 +118,7 @@ export class S3StreamProvider implements StreamProvider {
     const passThrough = new PassThrough();
     
     // Start the S3 upload using @aws-sdk/lib-storage
+    console.log(`Uploading resource to s3://${this.bucketName}/${key}...`);
     const upload = new Upload({
       client: this.s3,
       params: {
@@ -177,6 +180,7 @@ export class S3StreamProvider implements StreamProvider {
   async resourceExists(resourcePath: string): Promise<boolean> {
     const key = this.getFullKey(resourcePath);
     
+    console.log(`Checking existence of resource at s3://${this.bucketName}/${key}...`);
     try {
       const headCommand = new HeadObjectCommand({
         Bucket: this.bucketName,
@@ -204,6 +208,7 @@ export class S3StreamProvider implements StreamProvider {
   async listResources(prefix: string = ''): Promise<string[]> {
     const fullPrefix = this.getFullKey(prefix);
     
+    console.log(`Listing resources with prefix s3://${this.bucketName}/${fullPrefix}...`);
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: fullPrefix
@@ -221,6 +226,7 @@ export class S3StreamProvider implements StreamProvider {
   async getResourceMetadata(resourcePath: string): Promise<any> {
     const key = this.getFullKey(resourcePath);
     
+    console.log(`Getting metadata for resource at s3://${this.bucketName}/${key}...`);
     const headCommand = new HeadObjectCommand({
       Bucket: this.bucketName,
       Key: key
