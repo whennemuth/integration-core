@@ -137,6 +137,8 @@ export class S3StreamProvider implements StreamProvider {
   async moveResource(sourcePath: string, destinationPath: string): Promise<void> {
     const sourceKey = this.getFullKey(sourcePath);
     const destKey = this.getFullKey(destinationPath);
+
+    console.log(`Moving resource from s3://${this.bucketName}/${sourceKey} to s3://${this.bucketName}/${destKey}...`);
     
     // Copy object to new location
     const copyCommand = new CopyObjectCommand({
@@ -157,6 +159,7 @@ export class S3StreamProvider implements StreamProvider {
   async deleteResource(resourcePath: string): Promise<void> {
     const key = this.getFullKey(resourcePath);
     
+    console.log(`Deleting resource at s3://${this.bucketName}/${key}...`);
     try {
       const deleteCommand = new DeleteObjectCommand({
         Bucket: this.bucketName,
