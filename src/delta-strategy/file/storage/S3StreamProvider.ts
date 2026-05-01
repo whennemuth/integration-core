@@ -40,7 +40,10 @@ export class S3StreamProvider implements StreamProvider {
     if (typeof bucketNameOrConfig === 'string') {
       // Old signature: constructor(bucketName, keyPrefix, s3Config)
       this.bucketName = bucketNameOrConfig;
-      this.keyPrefix = keyPrefix.endsWith('/') ? keyPrefix : keyPrefix + '/';
+      // Only add trailing slash if keyPrefix is non-empty (empty should stay empty, not become '/')
+      this.keyPrefix = keyPrefix 
+        ? (keyPrefix.endsWith('/') ? keyPrefix : keyPrefix + '/')
+        : '';
       
       // Resolve region from environment if not explicitly provided
       const resolvedRegion = resolveAwsRegion();
@@ -58,14 +61,15 @@ export class S3StreamProvider implements StreamProvider {
       }
       
       this.bucketName = config.bucketName;
-      this.keyPrefix = (config.keyPrefix || '').endsWith('/') 
-        ? (config.keyPrefix || '') 
-        : (config.keyPrefix || '') + '/';
+      // Only add trailing slash if keyPrefix is non-empty (empty should stay empty, not become '/')
+      this.keyPrefix = config.keyPrefix
+        ? (config.keyPrefix.endsWith('/') ? config.keyPrefix : config.keyPrefix + '/')
+        : '';
       
       // Resolve region with priority order
       const resolvedRegion = resolveAwsRegion(config);
       const clientConfig: S3ClientConfig = { ...s3Config };
-      if (resolvedRegion) {
+      if (resolvedRegion && !clientConfig.region) {
         clientConfig.region = resolvedRegion;
       }
       

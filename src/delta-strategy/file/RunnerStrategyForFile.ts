@@ -57,7 +57,7 @@ export class DeltaStrategyForS3Bucket extends FileBasedDeltaStrategy {
     const { bucketName, keyPrefix, outputKeyPrefix, region } = this.parms.config as S3BucketDeltaStorageParams; // We know it's S3Config from factory
     return new S3BucketDeltaStorage({
       bucketName,
-      keyPrefix: keyPrefix || `test-datasets/${this.parms.clientId}`,
+      keyPrefix: keyPrefix !== undefined ? keyPrefix : `test-datasets/${this.parms.clientId}`,
       outputKeyPrefix,
       region
     });
