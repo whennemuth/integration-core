@@ -90,21 +90,16 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
       const previousKey = this.getPreviousInputKey(clientId);
 
       console.log(`Fetching previous data for client ${clientId} from path: ${previousKey}`);
-      
-      // Check if resource exists
-      const exists = await this.streamProvider.resourceExists(previousKey);
-      if (!exists) {
-        // No previous data exists yet
-        console.log(`No previous data found for client ${clientId} at path: ${previousKey}`);
-        return [];
-      }
 
       // Create read stream and use the stream processor to read NDJSON data
       const readStream = await this.streamProvider.createReadStream(previousKey);
-      if (!readStream) {
-        console.warn(`Failed to create read stream for previous data of client ${clientId} at path: ${previousKey}`);
+
+      // If readStream is null, it means the previous input file doesn't exist, so we return an empty array
+      if(!readStream) {
+        console.log(`Path: ${previousKey} does not exist. Cannot fetch previous data for client ${clientId}.`);
         return [];
       }
+
       return await this.streamProcessor.readFieldSets(readStream);
     } catch (error) {
       throw new Error(`Failed to fetch previous input for client ${clientId}: ${error}`);
