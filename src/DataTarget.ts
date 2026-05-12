@@ -49,6 +49,7 @@ export type SinglePushResult = BasePushResult & {
   status: Status;
   primaryKey: Field[]; // Support composite keys
   crud?: CrudOperation;
+  skipReason?: string; // Indicates should be skipped, not failed
 }
 
 /** Batch operation push result */
@@ -56,6 +57,7 @@ export type BatchPushResult = BasePushResult & {
   status: BatchStatus;
   successes?: SinglePushResult[];
   failures: SinglePushResult[];
+  skipped?: SinglePushResult[]; 
 }
 
 /** Union type for flexibility */ 
