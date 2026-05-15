@@ -13,7 +13,7 @@ import { BasicFieldValidator } from "./InputValidation";
  * Statistics returned from EndToEnd integration execution
  */
 export interface IntegrationResult {
-  /** Total number of records processed (successfully pushed + failed) */
+  /** Total number of records processed (successfully pushed + failed + skipped) */
   totalProcessed: number;
   
   /** Number of records successfully pushed to target */
@@ -21,6 +21,9 @@ export interface IntegrationResult {
   
   /** Number of records that failed to push */
   failureCount: number;
+  
+  /** Number of records skipped (validation failed, but not counted as failures) */
+  skippedCount: number;
   
   /** Number of records added (from delta computation) */
   addedCount: number;
@@ -104,6 +107,7 @@ export class EndToEnd {
         totalProcessed: 0,
         successCount: 0,
         failureCount: 0,
+        skippedCount: 0,
         addedCount: 0,
         updatedCount: 0,
         removedCount: 0,
@@ -140,11 +144,13 @@ export class EndToEnd {
     // Calculate and return statistics
     const successCount = pushResult.successes?.length ?? 0;
     const failureCountFromPush = pushResult.failures?.length ?? 0;
+    const skippedCount = pushResult.skipped?.length ?? 0;
     
     return {
-      totalProcessed: successCount + failureCountFromPush,
+      totalProcessed: successCount + failureCountFromPush + skippedCount,
       successCount,
       failureCount: failureCountFromPush,
+      skippedCount,
       addedCount: delta.added.length,
       updatedCount: delta.updated?.length ?? 0,
       removedCount: delta.removed.length,

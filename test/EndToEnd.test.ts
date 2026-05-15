@@ -196,9 +196,10 @@ const getMockDatabaseDeltaStorage = (testScenario: string): DatabaseDeltaStorage
 
 /**
  * Mock a target system, such as a database or API to which the computed delta can be pushed.
+ * @param simulateSkipped If true, simulate skipped records (IDs 4 and 6 will be skipped)
  * @returns 
  */
-const getMockDataTarget = (): DataTarget => {
+const getMockDataTarget = (simulateSkipped: boolean = false): DataTarget => {
   return {
     name: 'Mock Data Target',
     description: 'A data target for testing purposes',
@@ -207,18 +208,34 @@ const getMockDataTarget = (): DataTarget => {
       let pushed:number = 0;
       const failures: SinglePushResult[] = [];
       const successes: SinglePushResult[] = [];
+      const skipped: SinglePushResult[] = [];
       const singlePusher: DataTarget = {
         name: 'Inner Mock Data Target',
         description: 'An inner mock data target for testing purposes',
         async pushOne(pushOneParms: PushOneParms): Promise<SinglePushResult> {
           const { data, crud } = pushOneParms;
           console.log(`Pushing one record with CRUD operation '${crud}': ${JSON.stringify(data)}`);
-          // Simulate failure for every third record
-          pushed++;
           const idFld = data.fieldValues.find((fv: any) => fv.id);
           if( ! idFld) {
             throw new Error('No id field found in record being pushed');
           }
+          
+          // Simulate skipped records for IDs 5 and 6 (Charlie and Diana) if enabled
+          const recordId = (idFld as any).id;
+          if (simulateSkipped && (recordId === 5 || recordId === 6)) {
+            const result = { 
+              status: Status.SUCCESS, 
+              skipReason: 'Validation failed - simulated skip', 
+              timestamp: new Date(), 
+              primaryKey: [ idFld ],
+              crud
+            } satisfies SinglePushResult;
+            skipped.push(result);
+            return result; // Return without adding to successes or failures
+          }
+          
+          // Simulate failure for every third record (excluding skipped)
+          pushed++;
           if (pushed % 3 === 0) {
             const result = { 
               status: Status.FAILURE, 
@@ -239,7 +256,24 @@ const getMockDataTarget = (): DataTarget => {
       }
       const pusher = BasicPushAllOperation({ all: parms, pusher: singlePusher });
 
-      return await pusher.push();
+      const result = await pusher.push();
+      
+      // If simulating skipped, separate skipped records from successes
+      if (simulateSkipped && skipped.length > 0) {
+        // BasicPushAllOperation adds SUCCESS status results to successes array
+        // We need to move skipped records (those with skipReason) to the skipped array
+        const filteredSuccesses = result.successes?.filter(s => !s.skipReason) ?? [];
+        const filteredFailures = result.failures?.filter(f => !f.skipReason) ?? [];
+        
+        return { 
+          ...result, 
+          successes: filteredSuccesses,
+          failures: filteredFailures,
+          skipped 
+        };
+      }
+      
+      return result;
     },
     pushOne: async (parms: PushOneParms): Promise<SinglePushResult> => {
       const { data, crud } = parms;
@@ -310,14 +344,14 @@ const getMockDeltaStrategy = (testScenario: TestScenario) => {
 
 describe('EndToEnd', () => {
 
-  const getDeltaResult = async (testScenario: TestScenario): Promise<{ 
+  const getDeltaResult = async (testScenario: TestScenario, simulateSkipped: boolean = false): Promise<{ 
     deltaResult: DeltaResult, 
     pushResult: PushResult,
     integrationResult: IntegrationResult 
   }> => {
     // Create mock components
     const dataSource: DataSource = getMockDataSource();
-    const dataTarget: DataTarget = getMockDataTarget();
+    const dataTarget: DataTarget = getMockDataTarget(simulateSkipped);
     const deltaStrategy = getMockDeltaStrategy(testScenario);
 
     // Capture delta result and push result from EndToEnd execution
@@ -403,24 +437,55 @@ describe('EndToEnd', () => {
     }
   }
 
-  const defaultVerifyIntegrationResult = (integrationResult: IntegrationResult) => {
+  const defaultVerifyIntegrationResult = (
+    integrationResult: IntegrationResult,
+    expectedCounts?: {
+      successCount?: number;
+      failureCount?: number;
+      skippedCount?: number;
+      totalProcessed?: number;
+      addedCount?: number;
+      updatedCount?: number;
+      removedCount?: number;
+    }
+  ) => {
     return {
       assert: () => {
-        // Verify counts match expected results (1 added, 2 updated, 2 removed)
-        expect(integrationResult.addedCount).toBe(1);    // Ethan
-        expect(integrationResult.updatedCount).toBe(2);  // Charlie, Diana
-        expect(integrationResult.removedCount).toBe(2);  // Jane, Kyle
+        const {
+          successCount = 4,
+          failureCount = 1,
+          skippedCount = 0,
+          totalProcessed = 5,
+          addedCount = 1,
+          updatedCount = 2,
+          removedCount = 2
+        } = expectedCounts ?? {};
         
-        // Verify push success/failure counts (4 successes, 1 failure based on mock)
-        expect(integrationResult.successCount).toBe(4);  // Ethan, Charlie, Jane, Kyle
-        expect(integrationResult.failureCount).toBe(1);  // Diana (every 3rd record fails in mock)
-        expect(integrationResult.totalProcessed).toBe(5); // Sum of successes and failures
+        // Verify counts match expected results
+        expect(integrationResult.addedCount).toBe(addedCount);
+        expect(integrationResult.updatedCount).toBe(updatedCount);
+        expect(integrationResult.removedCount).toBe(removedCount);
+        
+        // Verify push success/failure counts
+        expect(integrationResult.successCount).toBe(successCount);
+        expect(integrationResult.failureCount).toBe(failureCount);
+        expect(integrationResult.skippedCount).toBe(skippedCount);
+        expect(integrationResult.totalProcessed).toBe(totalProcessed);
+        
+        // CRITICAL: Verify the math relationships
+        // Rule 1: Push results should equal delta operations
+        const pushSum = integrationResult.successCount + integrationResult.failureCount + integrationResult.skippedCount;
+        const deltaSum = integrationResult.addedCount + integrationResult.updatedCount + integrationResult.removedCount;
+        expect(pushSum).toBe(deltaSum);
+        
+        // Rule 2: Total processed should equal push sum
+        expect(integrationResult.totalProcessed).toBe(pushSum);
         
         // Verify optional fields are present
         expect(integrationResult.timestamp).toBeInstanceOf(Date);
         expect(integrationResult.duration).toBeGreaterThanOrEqual(0);
-        expect(integrationResult.successes).toHaveLength(4);
-        expect(integrationResult.failures).toHaveLength(1);
+        expect(integrationResult.successes).toHaveLength(successCount);
+        expect(integrationResult.failures).toHaveLength(failureCount);
       }
     }
   }
@@ -458,5 +523,43 @@ describe('EndToEnd', () => {
     defaultVerifyPushResult(pushResult).assert();
     
     defaultVerifyIntegrationResult(integrationResult).assert();
+  });
+
+  it('should include skipped records in totalProcessed count', async () => {
+    const { deltaResult, pushResult, integrationResult } = await getDeltaResult(
+      TestScenario.BRUTE_FORCE, 
+      true // Enable skipped records simulation
+    );
+
+    // Verify delta result (same as default)
+    defaultDeltaResultAssertions(deltaResult).assert();
+
+    // Verify push result includes skipped records
+    const batchPushResult = pushResult as BatchPushResult;
+    expect(batchPushResult.skipped).toBeDefined();
+    expect(batchPushResult.skipped).toHaveLength(2); // Charlie (id 5) and Diana (id 6)
+    
+    // Verify integration result with skipped records
+    // Charlie and Diana are skipped, so only Ethan, Jane, Kyle are pushed:
+    // - successCount: Ethan, Jane = 2 (Kyle fails because it's the 3rd push)
+    // - failureCount: Kyle = 1 (every 3rd record fails in mock)
+    // - skippedCount: Charlie, Diana = 2
+    // - totalProcessed: 2 + 1 + 2 = 5
+    defaultVerifyIntegrationResult(integrationResult, {
+      successCount: 2,
+      failureCount: 1,
+      skippedCount: 2,
+      totalProcessed: 5, // Should include skipped records!
+      addedCount: 1,     // Ethan
+      updatedCount: 2,   // Charlie, Diana
+      removedCount: 2    // Jane, Kyle
+    }).assert();
+    
+    console.log('Integration result with skipped records:', JSON.stringify({
+      totalProcessed: integrationResult.totalProcessed,
+      successCount: integrationResult.successCount,
+      failureCount: integrationResult.failureCount,
+      skipped: batchPushResult.skipped?.map(s => s.primaryKey)
+    }, null, 2));
   });
 });
