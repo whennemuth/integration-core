@@ -183,20 +183,40 @@ export class S3StreamProvider implements StreamProvider {
 
   async resourceExists(resourcePath: string): Promise<boolean> {
     const key = this.getFullKey(resourcePath);
-    
     console.log(`Checking existence of resource at s3://${this.bucketName}/${key}...`);
+    return await this.objectExists(key);
+  }
+
+  private async objectExists(key: string): Promise<boolean> {
     try {
-      const headCommand = new HeadObjectCommand({
+      await this.s3.send(new HeadObjectCommand({
         Bucket: this.bucketName,
         Key: key
-      });
-      await this.s3.send(headCommand);
+      }));
       return true;
-    } catch (error) {
-      if ((error as any).name === 'NotFound' || (error as any).name === 'NoSuchKey') {
+    } catch (error: any) {
+      // Most reliable: check the HTTP status code from metadata
+      const { $metadata: { httpStatusCode } = {} } = error || {}
+      if( ! httpStatusCode ) {
         return false;
       }
-      throw error;
+      const expectedStatusCodes = [
+        { code: 400, message: 'Bad Request' },
+        { code: 403, message: 'Forbidden' },
+        { code: 404, message: 'Not Found' },
+        { code: 405, message: 'Method Not Allowed' },
+        { code: 412, message: 'Precondition Failed' },
+        { code: 301, message: 'Moved Permanently' }, // Probably means no such bucket exists, but can also occur if bucket exists but is in a different region than the one specified in the S3 client config
+        { code: 304, message: 'Not Modified' }
+      ];
+      const expectedStatusCode = expectedStatusCodes.find(({ code }) => code === httpStatusCode);
+
+      if ( ! expectedStatusCode) {
+        console.warn(`Received unexpected error when checking if file exists at s3://${this.bucketName}/${key}:`, error);
+        return false;
+      }
+      console.log(`File does not exist at s3://${this.bucketName}/${key} (received expected ${expectedStatusCode.code} ${expectedStatusCode.message} error)`);
+      return false;
     }
   }
 
