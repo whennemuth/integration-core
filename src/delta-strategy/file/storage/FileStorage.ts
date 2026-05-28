@@ -65,6 +65,11 @@ export class FileSystemDeltaStorage implements FileDeltaStorage {
     return outputPath ? outputPath(previousKeyBase) : previousKeyBase;
   }
 
+  public async wouldOverwritePreviousData(clientId: string): Promise<boolean> {
+    const previousPath = this.getNewPreviousInputKey(clientId);
+    return await this.streamProvider.resourceExists(previousPath);
+  }
+
   /**
    * Fetches the previous input data from the file system using streaming NDJSON
    */

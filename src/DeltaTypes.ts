@@ -15,6 +15,8 @@ export interface DeltaStorage {
    */
   fetchPreviousData(params: { clientId: string, limitTo?: FieldSet[] }): Promise<FieldSet[]>;
   
+  wouldOverwritePreviousData(clientId: string): Promise<boolean>;
+
   /**
    * Use this to update the previous data baseline AFTER the computed delta 
    * has been pushed to the target.

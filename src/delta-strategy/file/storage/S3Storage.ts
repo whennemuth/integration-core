@@ -58,6 +58,11 @@ export class S3BucketDeltaStorage implements FileDeltaStorage {
     return outputKeyPrefix ? outputKeyPrefix(previousKeyBase) : previousKeyBase;
   }
 
+  public async wouldOverwritePreviousData(clientId: string): Promise<boolean> {
+    const previousKey = this.getNewPreviousInputKey(clientId);
+    return await this.streamProvider.resourceExists(previousKey);
+  }
+
   /**
    * Creates a new S3BucketDeltaStorage instance
    * @param parms - Parameters for configuring the S3 bucket storage)

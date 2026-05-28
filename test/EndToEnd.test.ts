@@ -101,6 +101,10 @@ const getMockFileDeltaStorage = (): FileDeltaStorage => {
       // Simulate updating previous data
       console.log(`Updating previous data for clientId: ${clientId}, recordCount: ${newPreviousData?.length || 0}`);
       return { status: 'success', message: `Updated previous data for client: ${clientId}` };
+    },
+    wouldOverwritePreviousData: async (clientId: string): Promise<boolean> => {
+      // Mock: always return true for testing purposes
+      return true;
     }
   };
 };
@@ -190,6 +194,10 @@ const getMockDatabaseDeltaStorage = (testScenario: string): DatabaseDeltaStorage
       // Simulate swapping current to previous
       console.log(`Performing updatePreviousData with clientId: ${clientId}`);
       return { status: 'success', message: `Updated previous data for client: ${clientId}` };
+    },
+    wouldOverwritePreviousData: async (clientId: string): Promise<boolean> => {
+      // Mock: always return true for testing purposes
+      return true;
     }
   };
 };

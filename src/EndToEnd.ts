@@ -1,6 +1,6 @@
 import { DataMapper } from "./DataMapper";
 import { DataSource } from "./DataSource";
-import { DataTarget, PushAllParms, SinglePushResult } from "./DataTarget";
+import { BatchPushResult, BatchStatus, DataTarget, PushAllParms, SinglePushResult } from "./DataTarget";
 import { DeltaStrategy } from "./delta-strategy/DeltaStrategy";
 import { isDatabaseConfig } from "./delta-strategy/DeltaStrategyParams";
 import { DeltaResult } from "./DeltaTypes";
@@ -99,10 +99,41 @@ export class EndToEnd {
       inputUtils,
       clientId
     });
+
+    const databaseConfig: boolean = config ? isDatabaseConfig(config) : false;
     
-    // If no changes detected, exit early
+    // If no changes detected, exit early, but only if it's a file-based strategy and can
+    // AND that file would be overwritten (must create otherwise).
     if (delta.added.length === 0 && (delta.updated ?? []).length === 0 && delta.removed.length === 0) {
-      console.log('No changes detected; skipping push and storage update.');
+      console.log('No changes detected; skipping push.');
+
+      if ( ! databaseConfig) {
+        const exists = await storage.wouldOverwritePreviousData(clientId);
+        if (!exists) {
+          const dummyPushResult: BatchPushResult = { 
+            successes: [], 
+            failures: [], 
+            skipped: [],
+            status: BatchStatus.SUCCESS,
+            message: 'No changes to push',
+            timestamp: new Date()
+          };
+
+          const limitTo = config && isDatabaseConfig(config) 
+          ? DeltaStrategy.buildLimitToArray(keyAndHashFieldSets, dummyPushResult) 
+          : undefined;
+
+          const previousInputFieldSets = await storage.fetchPreviousData({ clientId, limitTo });
+
+          await storage.updatePreviousData({
+            clientId, 
+            newPreviousData: previousInputFieldSets,
+            failureCount: 0, // No failures since we aren't pushing anything
+            cleanup: cleanupPreviousData
+          });   
+        }  
+      }
+
       return {
         totalProcessed: 0,
         successCount: 0,

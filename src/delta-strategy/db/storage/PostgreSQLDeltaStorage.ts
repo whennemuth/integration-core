@@ -420,4 +420,23 @@ export class PostgreSQLDeltaStorage implements DatabaseDeltaStorage {
     await this.databaseProvider.close();
     this.initialized = false;
   }
+
+  /**
+   * Check if previous data exists for a client
+   */
+  async wouldOverwritePreviousData(clientId: string): Promise<boolean> {
+    this.ensureInitialized();
+    
+    try {
+      const tableNames = EntityFactory.getClientTableNames(clientId);
+      const result = await this.databaseProvider.getDataSource().query(
+        `SELECT COUNT(*) as count FROM "${tableNames.previous}"`
+      );
+      const count = parseInt(result[0]?.count || '0', 10);
+      return count > 0;
+    } catch (error) {
+      // If table doesn't exist, previous data doesn't exist
+      return false;
+    }
+  }
 }

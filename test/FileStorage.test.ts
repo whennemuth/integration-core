@@ -237,6 +237,23 @@ describe('FileSystemDeltaStorage', () => {
     });
   });
 
+  describe('wouldOverwritePreviousData', () => {
+    it('should return true if previous data file exists', async () => {
+      // Set up existing previous data
+      mockProvider.setStoredData(`${testClientId}/previous-input.ndjson`, 'existing data');
+      
+      const result = await storage.wouldOverwritePreviousData(testClientId);
+      
+      expect(result).toBe(true);
+    });
+
+    it('should return false if previous data file does not exist', async () => {
+      const result = await storage.wouldOverwritePreviousData(testClientId);
+      
+      expect(result).toBe(false);
+    });
+  });
+
   describe('updatePreviousData', () => {
     it('should successfully update previous data when new data provided', async () => {
       const result = await storage.updatePreviousData({ clientId: testClientId, newPreviousData: testFieldSets });
@@ -266,6 +283,26 @@ describe('FileSystemDeltaStorage', () => {
       
       // Previous should be cleaned up
       expect(await mockProvider.resourceExists(`${testClientId}/previous-input.ndjson`)).toBe(false);
+    });
+
+    it('should preserve previous data when cleanup=false even with no new data', async () => {
+      // Create some existing previous data
+      mockProvider.setStoredData(`${testClientId}/previous-input.ndjson`, 'old test data that should be preserved');
+      
+      const result = await storage.updatePreviousData({ 
+        clientId: testClientId, 
+        newPreviousData: [],
+        cleanup: false  // Explicitly request no cleanup
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.message).toContain('Baseline update skipped');
+      
+      // Previous should NOT be cleaned up when cleanup=false
+      expect(await mockProvider.resourceExists(`${testClientId}/previous-input.ndjson`)).toBe(true);
+      
+      const preservedData = mockProvider.getStoredData(`${testClientId}/previous-input.ndjson`);
+      expect(preservedData).toBe('old test data that should be preserved');
     });
 
     it('should require clientId', async () => {

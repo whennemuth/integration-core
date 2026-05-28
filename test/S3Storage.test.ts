@@ -172,6 +172,32 @@ describe('S3BucketDeltaStorage', () => {
   // Note: FileDeltaStorage no longer has storeCurrentData method
   // This functionality is handled by the delta computation engine
 
+  describe('wouldOverwritePreviousData', () => {
+    it('should return true if previous data file exists', async () => {
+      const testData: FieldSet[] = [
+        { 
+          fieldValues: [
+            { id: '1', name: 'John', email: 'john@example.com' }
+          ],
+          hash: 'hash1'
+        }
+      ];
+
+      // Set up existing previous data
+      await deltaStorage.updatePreviousData({ clientId: 'client1', newPreviousData: testData });
+      
+      const result = await deltaStorage.wouldOverwritePreviousData('client1');
+      
+      expect(result).toBe(true);
+    });
+
+    it('should return false if previous data file does not exist', async () => {
+      const result = await deltaStorage.wouldOverwritePreviousData('client1-nonexistent');
+      
+      expect(result).toBe(false);
+    });
+  });
+
   describe('updatePreviousData', () => {
     it('should throw error for empty clientId', async () => {
       await expect(deltaStorage.updatePreviousData({ clientId: '', newPreviousData: [] })).rejects.toThrow(
