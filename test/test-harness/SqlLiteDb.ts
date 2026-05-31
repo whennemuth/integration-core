@@ -23,6 +23,7 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { TestEnvironment } from '../../src/utils/Utils';
 
 /**
  * Enum of supported "canned" queries
@@ -157,5 +158,17 @@ export const run = () => {
 }
 
 if (require.main === module) {
+  const testEnvironment = TestEnvironment('CORE_SQLITE_DB');
+  ['QUERY', 'DB_FILE'].forEach(testEnvironment.getVar);
+
+  const envQuery = testEnvironment.getVar('QUERY');
+  const envDbFile = testEnvironment.getVar('DB_FILE');
+  if (!process.argv[2] && envQuery) {
+    process.argv[2] = envQuery;
+  }
+  if (!process.argv[3] && envDbFile) {
+    process.argv[3] = envDbFile;
+  }
+
   run();
 }

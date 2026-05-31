@@ -36,5 +36,6 @@ export { FileSystemDeltaStorage as FileStorage } from '../src/delta-strategy/fil
 export { PostgreSQLDeltaStorage as DatabaseStorage } from '../src/delta-strategy/db/storage/PostgreSQLDeltaStorage';
 
 // Utils exports
+export * from '../src/utils/Utils';
 export * from '../src/utils/Timer';
 export { Progress, IProgress } from '../src/utils/Progress';

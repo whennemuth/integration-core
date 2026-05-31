@@ -1,4 +1,5 @@
 import { Timer } from "./Timer";
+import { TestEnvironment } from "./Utils";
 
 /**
  * Interface defining the contract for progress tracking functionality
@@ -133,14 +134,20 @@ export class Progress implements IProgress {
 
 
 if (require.main === module) {
+  const testEnvironment = TestEnvironment('CORE_PROGRESS');
+  ['TOTAL_ITEMS', 'LOG_AFTER', 'MAX_DELAY_MS'].forEach(testEnvironment.getVar);
+
+  const totalItems = parseInt(testEnvironment.getVar('TOTAL_ITEMS') || '100', 10);
+  const logAfter = parseInt(testEnvironment.getVar('LOG_AFTER') || '10', 10);
+  const maxDelayMs = parseInt(testEnvironment.getVar('MAX_DELAY_MS') || '100', 10);
+
   // Simple test of Progress class
-  const totalItems = 100;
-  const progress = new Progress({ total: totalItems, logAfter: 10 });
+  const progress = new Progress({ total: totalItems, logAfter });
   
   console.log('Starting progress test...');
   for (let i = 0; i < totalItems; i++) {
     // Simulate work
-    const delay = Math.random() * 100; // Random delay between 0-100ms
+    const delay = Math.random() * maxDelayMs; // Random delay between 0 and maxDelayMs
     const start = Date.now();
     while (Date.now() - start < delay) {
       // Busy wait to simulate work

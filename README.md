@@ -86,5 +86,45 @@ graph TD
     style M fill:#e8f5e8
 ```
 
+## Test Harnesses
+
+Test harnesses are executable modules that verify individual core components using environment-based configuration via the `TestEnvironment` utility. Each harness loads its own prefixed environment variables and validates component behavior in isolation.
+
+All harness configuration is managed through a `.env` file. The following groups correspond to test harnesses:
+
+```env
+# ---------- Use these for src/utils/Progress.ts ---------- #
+CORE_PROGRESS_TOTAL_ITEMS=100
+CORE_PROGRESS_LOG_AFTER=10
+CORE_PROGRESS_MAX_DELAY_MS=100
+
+# ---------- Use these for src/utils/Timer.ts ---------- #
+CORE_TIMER_SAMPLE_DURATION_MS=3661000
+CORE_TIMER_TIMEOUT_MS=3671
+CORE_TIMER_LOG_LABEL=Test Task
+
+# ---------- Use these for test/test-harness/SqlLiteDb.ts ---------- #
+# QUERY supports: list_tables, print_tables, print_table:<tableName>, custom_sql:<sql>
+CORE_SQLITE_DB_QUERY=list_tables
+# Optional explicit SQLite file path. Leave blank to auto-detect in test/test-harness/storage.
+CORE_SQLITE_DB_DB_FILE=
+```
+
+### Running Test Harnesses
+
+**Option 1: Using VS Code Launch Configuration (Recommended)**
+
+1. Open the harness file in the editor (e.g., `src/utils/Progress.ts`)
+2. Press `F5` or go to **Run > Start Debugging**
+3. Select "Debug current file" from the launch configuration dropdown
+4. The harness will execute with your `.env` file automatically loaded
+
+**Option 2: Command Line with npx**
+
+```bash
+npx ts-node src/utils/Progress.ts
+npx ts-node src/utils/Timer.ts
+npx ts-node test/test-harness/SqlLiteDb.ts
+```
 
 

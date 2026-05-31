@@ -1,4 +1,6 @@
 
+import { TestEnvironment } from "./Utils";
+
 const humanizeDuration = require("humanize-duration");
 
 // What humanize-duration considers to be the number of milliseconds in each unit of time
@@ -73,16 +75,23 @@ class Timer {
 }
 
 if (require.main === module) {
+  const testEnvironment = TestEnvironment('CORE_TIMER');
+  ['SAMPLE_DURATION_MS', 'TIMEOUT_MS', 'LOG_LABEL'].forEach(testEnvironment.getVar);
+
+  const sampleDurationMs = parseInt(testEnvironment.getVar('SAMPLE_DURATION_MS') || '3661000', 10);
+  const timeoutMs = parseInt(testEnvironment.getVar('TIMEOUT_MS') || '3671', 10);
+  const logLabel = testEnvironment.getVar('LOG_LABEL') || 'Test Task';
+
   // Simple test 1
   const timer = new Timer();
-  console.log(timer.getDuration(3661000)); // 1 hour, 1 minute, 1 second
+  console.log(timer.getDuration(sampleDurationMs)); // 1 hour, 1 minute, 1 second
 
   // Simple test 2
   timer.start();
   setTimeout(() => {
     timer.stop();
-    timer.logElapsed("Test Task");
-  }, 3671);
+    timer.logElapsed(logLabel);
+  }, timeoutMs);
 }
 
 export { Timer };
