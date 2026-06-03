@@ -2,6 +2,76 @@
 
 A Nodejs typescript library of abstract components and interfaces that provide baseline functionality for integration operations between source and target systems.
 
+## Repository Boundaries
+
+This project is an independently versioned npm package with its own Git repository. It is designed to be consumed by other independently versioned integration repositories in this workspace.
+
+The workspace is a development convenience, not a single source-controlled unit.
+
+## Shared Copilot Skills Setup (VS Code Configuration)
+
+Shared skills are maintained in a separate repository at `integration-workspace-skills/` and discovered by VS Code's Copilot using the `chat.agentSkillsLocations` setting in your `.code-workspace` file.
+
+**Key Point**: In multi-root `.code-workspace` configurations, `chat.agentSkillsLocations` paths are resolved relative to each workspace root folder, not from the `.code-workspace` file location itself.
+
+### Scenario 1: Working only on integration-core
+
+```json
+{
+    "folders": [
+        {
+            "path": "integration-workspace-skills",
+            "name": "skills"
+        },
+        {
+            "path": "integration-core",
+            "name": "core"
+        }
+    ],
+    "settings": {
+        "chat.tools.terminal.autoApprove": {
+            "npm test": true
+        },
+        "chat.agentSkillsLocations": {
+            "../integration-workspace-skills/skills": true
+        }
+    }
+}
+```
+
+### Scenario 2: Working on core + person + fargate
+
+```json
+{
+    "folders": [
+        {
+            "path": "integration-workspace-skills",
+            "name": "skills"
+        },
+        {
+            "path": "integration-core",
+            "name": "core"
+        },
+        {
+            "path": "integration-huron-person",
+            "name": "huron-person"
+        },
+        {
+            "path": "integration-huron-person-fargate",
+            "name": "huron-person-fargate"
+        }
+    ],
+    "settings": {
+        "chat.tools.terminal.autoApprove": {
+            "npm test": true
+        },
+        "chat.agentSkillsLocations": {
+            "../integration-workspace-skills/skills": true
+        }
+    }
+}
+```
+
 ## Overview
 
 The integration system implements a delta-based synchronization pattern that efficiently processes only changes between data pulls. The core workflow involves pulling data from a source as a fresh baseline, computing changes against a previous baseline, and pushing only the differences to a target system.
