@@ -54,10 +54,10 @@ export class DeltaStrategyForFileSystem extends FileBasedDeltaStrategy {
 export class DeltaStrategyForS3Bucket extends FileBasedDeltaStrategy {
   
   public get storage(): DeltaStorage {
-    const { bucketName, keyPrefix, outputKeyPrefix, region } = this.parms.config as S3BucketDeltaStorageParams; // We know it's S3Config from factory
+    const { bucketName, keyPrefix='', outputKeyPrefix, region } = this.parms.config as S3BucketDeltaStorageParams; // We know it's S3Config from factory
     return new S3BucketDeltaStorage({
       bucketName,
-      keyPrefix: keyPrefix !== undefined ? keyPrefix : `test-datasets/${this.parms.clientId}`,
+      keyPrefix,
       outputKeyPrefix,
       region
     });

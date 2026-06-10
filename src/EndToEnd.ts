@@ -102,7 +102,7 @@ export class EndToEnd {
 
     const databaseConfig: boolean = config ? isDatabaseConfig(config) : false;
     
-    // If no changes detected, exit early, but only if it's a file-based strategy and can
+    // If no changes detected, exit early, but only if it's a file-based strategy
     // AND that file would be overwritten (must create otherwise).
     if (delta.added.length === 0 && (delta.updated ?? []).length === 0 && delta.removed.length === 0) {
       console.log('No changes detected; skipping push.');
