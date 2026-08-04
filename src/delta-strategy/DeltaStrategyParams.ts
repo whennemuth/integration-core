@@ -46,26 +46,46 @@ export type S3Config = {
 };
 
 /**
+ * DynamoDB configuration for delta storage
+ * Configures AWS DynamoDB tables for storing person hash state and history.
+ * Table names should be provided by the infrastructure layer (fargate project).
+ */
+export type DynamoDBConfig = {
+  region: string;
+  personCurrentStateTableName: string;
+  personHistoryTableName: string;
+  currentStateGSIName?: string;
+  clientConfig?: any;
+};
+
+/**
  * Parameters for configuring an End-to-End delta cycle.
  * Contains test configuration including client ID, data size, failure simulation,
  * and optional storage backend configuration.
  */
 export type DeltaStrategyParams = {
   clientId: string;
-  config?: DatabaseConfig | S3Config | FileConfig;
+  config?: DatabaseConfig | S3Config | FileConfig | DynamoDBConfig;
 };
 
 /**
  * Type guard to check if config is DatabaseConfig
  */
-export const isDatabaseConfig = (config: DatabaseConfig | S3Config | FileConfig): config is DatabaseConfig => {
+export const isDatabaseConfig = (config: DatabaseConfig | S3Config | FileConfig | DynamoDBConfig): config is DatabaseConfig => {
   return 'type' in config && ['sqlite', 'postgresql', 'mysql'].includes((config as DatabaseConfig).type);
 };
 
 /**
  * Type guard to check if config is S3Config
  */
-export const isS3Config = (config: DatabaseConfig | S3Config | FileConfig): config is S3Config => {
+export const isS3Config = (config: DatabaseConfig | S3Config | FileConfig | DynamoDBConfig): config is S3Config => {
   return 'bucketName' in config;
+};
+
+/**
+ * Type guard to check if config is DynamoDBConfig
+ */
+export const isDynamoDBConfig = (config: DatabaseConfig | S3Config | FileConfig | DynamoDBConfig): config is DynamoDBConfig => {
+  return 'personCurrentStateTableName' in config && 'personHistoryTableName' in config;
 };
 

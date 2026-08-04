@@ -67,12 +67,10 @@ export const TestEnvironment = (prefix: string, custom?: (entry: {key:string, va
       process.env[key] = val;
     }
     else {
-      // Check for a non-prefixed version if the prefixed version is not set, and make sure 
-      // it is also blank. This makes the omission of a prefixed value mean an explicit 
-      // blank value for the core environment variable.  
+      // Check for a non-prefixed version if the prefixed version is not set, and set the prefixed version to it if found
       val = process.env[key];
       if(val) {
-        delete process.env[key];
+        process.env[prefix + key] = val;
       }
     }
 
