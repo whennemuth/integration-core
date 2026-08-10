@@ -27,6 +27,45 @@ Canonical settings entry:
 
 Core-only and core+person+fargate workspace examples are documented in this repository's `README.md`.
 
+## Implementation Verification Protocol
+
+**CRITICAL**: When implementing code that depends on unfamiliar abstractions, control flow directives, or domain-specific patterns, you MUST verify their actual behavior before proceeding.
+
+### High-Risk Abstractions Requiring Verification
+
+- **Control flow directives**: `__arrayFieldOperations`, `__metadata`, behavioral flags
+- **Update semantics**: append vs replace, merge vs overwrite patterns
+- **Authentication patterns**: token refresh mechanisms, credential chains
+- **Data transformation pipelines**: mapping strategies, field filters
+- **Sync coordination**: delta strategies, hash comparison logic
+
+### Mandatory Verification Steps
+
+Before implementing code that uses an unfamiliar abstraction:
+
+1. **Search for definition**: Use `grep_search` to find where it's defined
+2. **Find consumers**: Search for where it's processed/interpreted
+3. **Read usage examples**: Look at tests and similar patterns
+4. **State your understanding**: Explicitly describe what you think it does
+5. **Think through interactions**: Consider edge cases and combinations
+6. **Only then implement**: Proceed with verified understanding
+
+### When You're Uncertain
+
+If you cannot fully verify an abstraction's behavior:
+
+- **State explicitly what you don't know**
+- **Ask whether to search for implementation first**
+- **Do NOT proceed on "educated guesses"**
+
+### User Override
+
+You can skip verification by saying:
+- "Skip verification and proceed"
+- "Use inference for this"
+
+**See Also**: `verify-abstractions-before-implementation` skill in workspace skills repository
+
 ## Key Exports
 
 ### TestEnvironment (Environment Variable Isolation Utility)
