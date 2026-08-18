@@ -161,7 +161,7 @@ Test harnesses should be created in **integration-huron-person-fargate** project
 
 ## Migration Path
 
-1. Create DynamoDB tables in CDK (conditional on `useDynamoDb` flag)
+1. Create DynamoDB tables in CDK (conditional on `PREVIOUS_STORAGE_TYPE === 'dynamodb'`, which is the default)
 2. Implement processor-dynamodb.ts entry point
 3. Test with subset of data
 4. Compare results with file-based strategy
