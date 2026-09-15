@@ -71,8 +71,12 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
    * Uses BatchGetItem for efficiency (up to 100 items per request).
    * 
    * @param params.clientId - Not used in DynamoDB implementation (kept for interface compatibility)
-   * @param params.limitTo - FieldSets containing personIds to fetch (chunk-scoped)
-   * @returns Array of FieldSets with personId and hash
+   * @param params.limitTo - FieldSets containing personIds to fetch (chunk-scoped). Each FieldSet is
+   *   expected to already be reduced to just its primary key field(s) (e.g. by
+   *   InputUtilsDecorator.getKeyAndHashFieldSets() or DeltaStrategy.buildLimitToArray()), so the
+   *   field name itself is not assumed - whatever it's actually called (e.g. sourceIdentifier), only
+   *   its value is used to key the DynamoDB lookup.
+   * @returns Array of FieldSets with the same field name as the input plus hash
    */
   async fetchPreviousData(params: { clientId: string; limitTo?: FieldSet[] }): Promise<FieldSet[]> {
     const { limitTo } = params;
@@ -84,16 +88,23 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     }
 
     const { personCurrentStateTableName } = this.config;
-    const personIds = limitTo
+    const idEntries = limitTo
       .map(fs => {
-        const field = fs.fieldValues.find((fv: Field) => 'personId' in fv);
-        return field?.['personId'] as string | undefined;
+        const field = fs.fieldValues[0];
+        if (!field) return undefined;
+        const [fieldName] = Object.keys(field);
+        return fieldName ? { fieldName, value: field[fieldName] as string } : undefined;
       })
-      .filter(Boolean) as string[];
+      .filter((e): e is { fieldName: string; value: string } => !!e && !!e.value);
 
-    if (personIds.length === 0) {
+    if (idEntries.length === 0) {
       return [];
     }
+
+    // Preserve the caller's primary key field name (e.g. sourceIdentifier) in the output, so
+    // downstream matching (e.g. InputUtilsDecorator.restorePreviousHashesForFailures()) still works.
+    const fieldName = idEntries[0].fieldName;
+    const personIds = idEntries.map(e => e.value);
 
     // Batch get in chunks of 100 (DynamoDB limit)
     const batchSize = 100;
@@ -117,7 +128,7 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
       for (const item of items as any[]) {
         results.push({
           fieldValues: [
-            { personId: item.personId }
+            { [fieldName]: item.personId }
           ],
           hash: item.hash
         });
@@ -154,8 +165,12 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
    * - DELETED: Only write to PersonHistory (handled by merger, not processors)
    * 
    * @param params.clientId - Not used in DynamoDB implementation
-   * @param params.newPreviousData - FieldSets with personId, hash, and changeType metadata
-   * @param params.primaryKeyFields - Not used (personId is always the key)
+   * @param params.newPreviousData - FieldSets whose sole field is the primary key (e.g.
+   *   sourceIdentifier), plus hash and changeType metadata. The DynamoDB item is always stored
+   *   under the "personId" attribute regardless of the FieldSet's field name.
+   * @param params.primaryKeyFields - Names the primary key field(s) so the correct field can be
+   *   found by name regardless of what the caller's DataMapper calls it (e.g. sourceIdentifier);
+   *   falls back to the FieldSet's sole field if not provided.
    * @param params.failureCount - Not used in DynamoDB implementation
    * @param params.cleanup - Not used in DynamoDB implementation
    */
@@ -166,7 +181,7 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     failureCount?: number;
     cleanup?: boolean;
   }): Promise<void> {
-    const { newPreviousData } = params;
+    const { newPreviousData, primaryKeyFields } = params;
     
     if (!newPreviousData || newPreviousData.length === 0) {
       return;
@@ -180,8 +195,10 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     const historyItems: any[] = [];
 
     for (const fieldSet of newPreviousData) {
-      const personIdField = fieldSet.fieldValues.find((fv: Field) => 'personId' in fv);
-      const personId = personIdField?.['personId'] as string | undefined;
+      const personIdField = primaryKeyFields && primaryKeyFields.size > 0
+        ? fieldSet.fieldValues.find((fv: Field) => Object.keys(fv).some(k => primaryKeyFields.has(k)))
+        : fieldSet.fieldValues[0];
+      const personId = personIdField ? Object.values(personIdField)[0] as string : undefined;
       const hash = fieldSet.hash;
       const changeTypeField = fieldSet.fieldValues.find((fv: Field) => 'changeType' in fv);
       const changeType = (changeTypeField?.['changeType'] as string) || 'UPDATED';
