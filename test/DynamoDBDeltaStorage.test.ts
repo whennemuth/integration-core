@@ -70,6 +70,30 @@ describe('DynamoDBDeltaStorage', () => {
 
       expect(sendSpy).not.toHaveBeenCalled();
     });
+
+    it('stamps records with the configured syncRunId instead of a freshly-generated timestamp', async () => {
+      sendSpy.mockResolvedValue({});
+      const storage = new DynamoDBDeltaStorage({
+        region: 'us-east-1',
+        personCurrentStateTableName: 'person-current-state',
+        personHistoryTableName: 'person-history',
+        syncRunId: '2026-09-15T03:06:06.027Z'
+      });
+
+      const newPreviousData: FieldSet[] = [
+        { fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' },
+        { fieldValues: [{ sourceIdentifier: 'U0000002' }], hash: 'hash2' }
+      ];
+
+      await storage.updatePreviousData({ clientId: 'unused', newPreviousData });
+
+      const batchWriteCall = sendSpy.mock.calls.find(([cmd]: any[]) =>
+        cmd.input.RequestItems?.['person-current-state']
+      );
+      const items = batchWriteCall[0].input.RequestItems['person-current-state'];
+      expect(items[0].PutRequest.Item.syncRunId).toBe('2026-09-15T03:06:06.027Z');
+      expect(items[1].PutRequest.Item.syncRunId).toBe('2026-09-15T03:06:06.027Z');
+    });
   });
 
   describe('fetchPreviousData', () => {

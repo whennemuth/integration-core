@@ -55,6 +55,11 @@ export type DynamoDBConfig = {
   personCurrentStateTableName: string;
   personHistoryTableName: string;
   currentStateGSIName?: string;
+  /** The actual sync run's ID (e.g. the chunk directory's ISO timestamp), stored on every
+   *  PersonCurrentState/PersonHistory record written during this run. Falls back to a
+   *  freshly-generated timestamp if omitted (not recommended - records from the same run
+   *  would then get different syncRunId values depending on when each was written). */
+  syncRunId?: string;
   clientConfig?: any;
 };
 

@@ -87,6 +87,7 @@ export class DeltaStrategyForDynamoDB extends DeltaStrategy {
       personCurrentStateTableName: config.personCurrentStateTableName,
       personHistoryTableName: config.personHistoryTableName,
       currentStateGSIName: config.currentStateGSIName,
+      syncRunId: config.syncRunId,
       clientConfig: config.clientConfig
     });
   }

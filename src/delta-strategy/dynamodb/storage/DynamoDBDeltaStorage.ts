@@ -24,6 +24,11 @@ export interface DynamoDBDeltaStorageConfig {
   /** GSI name for querying PersonCurrentState by syncRunId */
   currentStateGSIName?: string;
   
+  /** The actual sync run's ID, stamped onto every record written by updatePreviousData().
+   *  Falls back to a freshly-generated timestamp if omitted, but every caller within the same
+   *  sync run should pass the same value so records can be correlated by syncRunId. */
+  syncRunId?: string;
+  
   /** Optional DynamoDB client configuration */
   clientConfig?: any;
 }
@@ -188,7 +193,7 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     }
 
     const { personCurrentStateTableName, personHistoryTableName } = this.config;
-    const syncRunId = new Date().toISOString();
+    const syncRunId = this.config.syncRunId ?? new Date().toISOString();
 
     // Prepare items for batch write
     const currentStateItems: any[] = [];
