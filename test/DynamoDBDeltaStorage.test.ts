@@ -1,4 +1,4 @@
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBDeltaStorage } from '../src/delta-strategy/dynamodb/storage/DynamoDBDeltaStorage';
 import { FieldSet } from '../src/InputTypes';
 
@@ -31,7 +31,7 @@ describe('DynamoDBDeltaStorage', () => {
       await storage.updatePreviousData({ clientId: 'unused', newPreviousData });
 
       const batchWriteCall = sendSpy.mock.calls.find(([cmd]: any[]) =>
-        cmd.input.RequestItems?.['person-current-state']
+        cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.['person-current-state']
       );
       expect(batchWriteCall).toBeDefined();
       const items = batchWriteCall[0].input.RequestItems['person-current-state'];
@@ -54,7 +54,7 @@ describe('DynamoDBDeltaStorage', () => {
       });
 
       const batchWriteCall = sendSpy.mock.calls.find(([cmd]: any[]) =>
-        cmd.input.RequestItems?.['person-current-state']
+        cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.['person-current-state']
       );
       const items = batchWriteCall[0].input.RequestItems['person-current-state'];
       expect(items[0].PutRequest.Item.personId).toBe('U0000002');
@@ -88,11 +88,102 @@ describe('DynamoDBDeltaStorage', () => {
       await storage.updatePreviousData({ clientId: 'unused', newPreviousData });
 
       const batchWriteCall = sendSpy.mock.calls.find(([cmd]: any[]) =>
-        cmd.input.RequestItems?.['person-current-state']
+        cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.['person-current-state']
       );
       const items = batchWriteCall[0].input.RequestItems['person-current-state'];
       expect(items[0].PutRequest.Item.syncRunId).toBe('2026-09-15T03:06:06.027Z');
       expect(items[1].PutRequest.Item.syncRunId).toBe('2026-09-15T03:06:06.027Z');
+    });
+
+    describe('change classification against stored hashes', () => {
+      const writtenItems = (tableName: string): any[] => sendSpy.mock.calls
+        .filter(([cmd]: any[]) => cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.[tableName])
+        .flatMap(([cmd]: any[]) => cmd.input.RequestItems[tableName].map((r: any) => r.PutRequest.Item));
+
+      const mockStoredHashes = (stored: Record<string, string>) => {
+        sendSpy.mockImplementation(async (cmd: any) => {
+          if (cmd instanceof BatchGetCommand) {
+            const keys = cmd.input.RequestItems!['person-current-state'].Keys as { personId: string }[];
+            return {
+              Responses: {
+                'person-current-state': keys
+                  .filter(({ personId }) => personId in stored)
+                  .map(({ personId }) => ({ personId, hash: stored[personId] }))
+              }
+            };
+          }
+          return {};
+        });
+      };
+
+      it('writes NEW and UPDATED (with previousHash) records and skips UNCHANGED ones in both tables', async () => {
+        mockStoredHashes({ U0000002: 'hash2', U0000003: 'old-hash3' });
+        const storage = buildStorage();
+
+        await storage.updatePreviousData({
+          clientId: 'unused',
+          newPreviousData: [
+            { fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' }, // no stored record
+            { fieldValues: [{ sourceIdentifier: 'U0000002' }], hash: 'hash2' }, // same hash
+            { fieldValues: [{ sourceIdentifier: 'U0000003' }], hash: 'hash3' }, // different hash
+          ]
+        });
+
+        expect(writtenItems('person-current-state').map(i => i.personId)).toEqual(['U0000001', 'U0000003']);
+        expect(writtenItems('person-history')).toEqual([
+          { personId: 'U0000001', syncRunId: expect.any(String), hash: 'hash1', changeType: 'NEW' },
+          { personId: 'U0000003', syncRunId: expect.any(String), hash: 'hash3', changeType: 'UPDATED', previousHash: 'old-hash3' },
+        ]);
+      });
+
+      it('writes nothing when every record is unchanged', async () => {
+        mockStoredHashes({ U0000001: 'hash1' });
+        const storage = buildStorage();
+
+        await storage.updatePreviousData({
+          clientId: 'unused',
+          newPreviousData: [{ fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' }]
+        });
+
+        expect(sendSpy.mock.calls.some(([cmd]: any[]) => cmd instanceof BatchWriteCommand)).toBe(false);
+      });
+
+      it('honors a changeType supplied on the record without looking up its stored hash', async () => {
+        mockStoredHashes({ U0000001: 'hash1' });
+        const storage = buildStorage();
+
+        await storage.updatePreviousData({
+          clientId: 'unused',
+          newPreviousData: [{ fieldValues: [{ sourceIdentifier: 'U0000001' }, { changeType: 'UPDATED' }, { previousHash: 'prev' }], hash: 'hash1' }],
+          primaryKeyFields: new Set(['sourceIdentifier'])
+        });
+
+        expect(sendSpy.mock.calls.some(([cmd]: any[]) => cmd instanceof BatchGetCommand)).toBe(false);
+        expect(writtenItems('person-history')[0]).toMatchObject({ changeType: 'UPDATED', previousHash: 'prev' });
+      });
+
+      it('retries unprocessed keys so existing persons are not misclassified as NEW', async () => {
+        let getCalls = 0;
+        sendSpy.mockImplementation(async (cmd: any) => {
+          if (cmd instanceof BatchGetCommand) {
+            getCalls++;
+            const keys = cmd.input.RequestItems!['person-current-state'].Keys;
+            return getCalls === 1
+              ? { Responses: { 'person-current-state': [] }, UnprocessedKeys: { 'person-current-state': { Keys: keys } } }
+              : { Responses: { 'person-current-state': [{ personId: 'U0000001', hash: 'old-hash1' }] } };
+          }
+          return {};
+        });
+        const storage = buildStorage();
+
+        await storage.updatePreviousData({
+          clientId: 'unused',
+          newPreviousData: [{ fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' }]
+        });
+
+        expect(getCalls).toBe(2);
+        expect(writtenItems('person-history')[0]).toMatchObject({ changeType: 'UPDATED', previousHash: 'old-hash1' });
+      });
     });
   });
 

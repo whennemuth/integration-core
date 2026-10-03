@@ -1,7 +1,8 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { 
   DynamoDBDocumentClient, 
-  BatchGetCommand, 
+  BatchGetCommand,
+  BatchGetCommandOutput,
   BatchWriteCommand,
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
@@ -166,13 +167,19 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
    * Write Policy:
    * - NEW: Write to both tables
    * - UPDATED: Write to both tables (include previousHash in history)
-   * - UNCHANGED: Skip entirely (not written to params)
+   * - UNCHANGED: Skip entirely (neither table is written)
    * - DELETED: Only write to PersonHistory (handled by merger, not processors)
-   * 
+   *
+   * Change classification: callers (EndToEnd) pass every record in the chunk, changed or not, so
+   * each record's changeType is determined here by comparing its hash with the one stored in
+   * PersonCurrentState: no stored record -> NEW, same hash -> UNCHANGED, different hash ->
+   * UPDATED (with the stored hash as previousHash). A changeType/previousHash field already
+   * present on a record takes precedence over this classification.
+   *
    * @param params.clientId - Not used in DynamoDB implementation
    * @param params.newPreviousData - FieldSets whose sole field is the primary key (e.g.
-   *   sourceIdentifier), plus hash and changeType metadata. The DynamoDB item is always stored
-   *   under the "personId" attribute regardless of the FieldSet's field name.
+   *   sourceIdentifier), plus hash and optional changeType/previousHash metadata. The DynamoDB
+   *   item is always stored under the "personId" attribute regardless of the FieldSet's field name.
    * @param params.primaryKeyFields - Names the primary key field(s) so the correct field can be
    *   found by name regardless of what the caller's DataMapper calls it (e.g. sourceIdentifier);
    *   falls back to the FieldSet's sole field if not provided.
@@ -195,10 +202,8 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     const { personCurrentStateTableName, personHistoryTableName } = this.config;
     const syncRunId = this.config.syncRunId ?? new Date().toISOString();
 
-    // Prepare items for batch write
-    const currentStateItems: any[] = [];
-    const historyItems: any[] = [];
-
+    // Resolve each record's personId, hash and any caller-supplied change metadata
+    const records: { personId: string; hash: string; explicitChangeType?: string; explicitPreviousHash?: string }[] = [];
     for (const fieldSet of newPreviousData) {
       const personIdField = primaryKeyFields && primaryKeyFields.size > 0
         ? fieldSet.fieldValues.find((fv: Field) => Object.keys(fv).some(k => primaryKeyFields.has(k)))
@@ -206,13 +211,43 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
       const personId = personIdField ? Object.values(personIdField)[0] as string : undefined;
       const hash = fieldSet.hash;
       const changeTypeField = fieldSet.fieldValues.find((fv: Field) => 'changeType' in fv);
-      const changeType = (changeTypeField?.['changeType'] as string) || 'UPDATED';
       const previousHashField = fieldSet.fieldValues.find((fv: Field) => 'previousHash' in fv);
-      const previousHash = previousHashField?.['previousHash'] as string | undefined;
 
       if (!personId || !hash) {
         continue; // Skip invalid records
       }
+
+      records.push({
+        personId,
+        hash,
+        explicitChangeType: changeTypeField?.['changeType'] as string | undefined,
+        explicitPreviousHash: previousHashField?.['previousHash'] as string | undefined
+      });
+    }
+
+    if (records.length === 0) {
+      return;
+    }
+
+    // Look up stored hashes for records whose changeType must be classified here
+    const storedHashes = await this.getStoredHashes(
+      records.filter(r => !r.explicitChangeType).map(r => r.personId)
+    );
+
+    // Prepare items for batch write
+    const currentStateItems: any[] = [];
+    const historyItems: any[] = [];
+    let newCount = 0, updatedCount = 0, unchangedCount = 0;
+
+    for (const { personId, hash, explicitChangeType, explicitPreviousHash } of records) {
+      const storedHash = storedHashes.get(personId);
+      const changeType = explicitChangeType
+        ?? (storedHash === undefined ? 'NEW' : storedHash === hash ? 'UNCHANGED' : 'UPDATED');
+      const previousHash = explicitPreviousHash ?? storedHash;
+
+      if (changeType === 'NEW') newCount++;
+      else if (changeType === 'UPDATED') updatedCount++;
+      else if (changeType === 'UNCHANGED') unchangedCount++;
 
       // Skip UNCHANGED records entirely
       if (changeType === 'UNCHANGED') {
@@ -247,6 +282,8 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
       });
     }
 
+    console.log(`DynamoDBDeltaStorage: ${newCount} NEW, ${updatedCount} UPDATED, ${unchangedCount} UNCHANGED (not written) of ${records.length} record(s)`);
+
     // Batch write in chunks of 25 (DynamoDB limit for BatchWriteItem)
     const batchSize = 25;
 
@@ -269,6 +306,49 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
         }
       }));
     }
+  }
+
+  /**
+   * Fetch the stored PersonCurrentState hash for each of the given personIds.
+   * Unprocessed keys (e.g. from throttling) are retried, since a person silently missing from the
+   * result would be misclassified as NEW.
+   *
+   * @param personIds - Person identifiers to look up
+   * @returns Map of personId to stored hash (only includes persons that have a stored record)
+   */
+  private async getStoredHashes(personIds: string[]): Promise<Map<string, string>> {
+    const { personCurrentStateTableName } = this.config;
+    const storedHashes = new Map<string, string>();
+    const uniqueIds = Array.from(new Set(personIds));
+    const batchSize = 100; // DynamoDB BatchGetItem limit
+    const maxAttempts = 5;
+
+    for (let i = 0; i < uniqueIds.length; i += batchSize) {
+      let keys: any[] | undefined = uniqueIds.slice(i, i + batchSize).map(personId => ({ personId }));
+
+      for (let attempt = 1; keys && keys.length > 0; attempt++) {
+        if (attempt > maxAttempts) {
+          throw new Error(`Failed to fetch stored hashes: ${keys.length} key(s) still unprocessed after ${maxAttempts} attempts`);
+        }
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, 100 * 2 ** (attempt - 2)));
+        }
+
+        const response: BatchGetCommandOutput = await this.client.send(new BatchGetCommand({
+          RequestItems: {
+            [personCurrentStateTableName]: { Keys: keys, ProjectionExpression: 'personId, #h', ExpressionAttributeNames: { '#h': 'hash' } }
+          }
+        }));
+
+        for (const item of (response.Responses?.[personCurrentStateTableName] || []) as any[]) {
+          storedHashes.set(item.personId, item.hash);
+        }
+
+        keys = response.UnprocessedKeys?.[personCurrentStateTableName]?.Keys;
+      }
+    }
+
+    return storedHashes;
   }
 
   /**
