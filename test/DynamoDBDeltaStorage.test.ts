@@ -185,6 +185,46 @@ describe('DynamoDBDeltaStorage', () => {
         expect(writtenItems('person-history')[0]).toMatchObject({ changeType: 'UPDATED', previousHash: 'old-hash1' });
       });
     });
+
+    describe('unprocessed write retries', () => {
+      const newPreviousData: FieldSet[] = [{ fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' }];
+
+      it('resends unprocessed write requests until none remain', async () => {
+        const writesPerTable: Record<string, number> = {};
+        sendSpy.mockImplementation(async (cmd: any) => {
+          if (cmd instanceof BatchWriteCommand) {
+            const [tableName] = Object.keys(cmd.input.RequestItems!);
+            writesPerTable[tableName] = (writesPerTable[tableName] || 0) + 1;
+            // Throttle each table's first write
+            return writesPerTable[tableName] === 1
+              ? { UnprocessedItems: { [tableName]: cmd.input.RequestItems![tableName] } }
+              : {};
+          }
+          return {};
+        });
+        const storage = buildStorage();
+
+        await storage.updatePreviousData({ clientId: 'unused', newPreviousData });
+
+        expect(writesPerTable).toEqual({ 'person-current-state': 2, 'person-history': 2 });
+      });
+
+      it('throws (without writing history) when PersonCurrentState writes stay unprocessed', async () => {
+        sendSpy.mockImplementation(async (cmd: any) => {
+          if (cmd instanceof BatchWriteCommand) {
+            return { UnprocessedItems: cmd.input.RequestItems };
+          }
+          return {};
+        });
+        const storage = buildStorage();
+
+        await expect(storage.updatePreviousData({ clientId: 'unused', newPreviousData }))
+          .rejects.toThrow(/person-current-state: 1 request\(s\) still unprocessed after 5 attempts/);
+        expect(sendSpy.mock.calls.some(([cmd]: any[]) =>
+          cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.['person-history']
+        )).toBe(false);
+      });
+    });
   });
 
   describe('fetchPreviousData', () => {

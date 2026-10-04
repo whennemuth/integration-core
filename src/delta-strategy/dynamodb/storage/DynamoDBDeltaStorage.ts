@@ -4,6 +4,7 @@ import {
   BatchGetCommand,
   BatchGetCommandOutput,
   BatchWriteCommand,
+  BatchWriteCommandOutput,
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { DeltaStorage } from '../../../DeltaTypes';
@@ -284,27 +285,43 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
 
     console.log(`DynamoDBDeltaStorage: ${newCount} NEW, ${updatedCount} UPDATED, ${unchangedCount} UNCHANGED (not written) of ${records.length} record(s)`);
 
-    // Batch write in chunks of 25 (DynamoDB limit for BatchWriteItem)
+    // PersonCurrentState is written before PersonHistory: if writing fails part way, a person may
+    // lack a history entry, but is never left with a history entry that PersonCurrentState doesn't
+    // reflect - which would get the same change written to history again on the next run.
+    await this.batchWriteWithRetry(personCurrentStateTableName, currentStateItems);
+    await this.batchWriteWithRetry(personHistoryTableName, historyItems);
+  }
+
+  /**
+   * Batch write requests to a table in chunks of 25 (DynamoDB limit for BatchWriteItem).
+   * BatchWriteItem does not throw when throttled - it returns the requests it skipped as
+   * UnprocessedItems - so those are retried with exponential backoff, and an error is thrown if
+   * any remain after the final attempt, rather than letting writes be silently dropped.
+   *
+   * @param tableName - Table to write to
+   * @param requests - PutRequest/DeleteRequest objects
+   */
+  private async batchWriteWithRetry(tableName: string, requests: any[]): Promise<void> {
     const batchSize = 25;
+    const maxAttempts = 5;
 
-    // Write to PersonCurrentState
-    for (let i = 0; i < currentStateItems.length; i += batchSize) {
-      const batch = currentStateItems.slice(i, i + batchSize);
-      await this.client.send(new BatchWriteCommand({
-        RequestItems: {
-          [personCurrentStateTableName]: batch
-        }
-      }));
-    }
+    for (let i = 0; i < requests.length; i += batchSize) {
+      let pending: any[] | undefined = requests.slice(i, i + batchSize);
 
-    // Write to PersonHistory
-    for (let i = 0; i < historyItems.length; i += batchSize) {
-      const batch = historyItems.slice(i, i + batchSize);
-      await this.client.send(new BatchWriteCommand({
-        RequestItems: {
-          [personHistoryTableName]: batch
+      for (let attempt = 1; pending && pending.length > 0; attempt++) {
+        if (attempt > maxAttempts) {
+          throw new Error(`Failed to write to ${tableName}: ${pending.length} request(s) still unprocessed after ${maxAttempts} attempts`);
         }
-      }));
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, 100 * 2 ** (attempt - 2)));
+        }
+
+        const response: BatchWriteCommandOutput = await this.client.send(new BatchWriteCommand({
+          RequestItems: { [tableName]: pending }
+        }));
+
+        pending = response.UnprocessedItems?.[tableName];
+      }
     }
   }
 
