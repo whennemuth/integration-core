@@ -26,10 +26,15 @@ export { DatabaseProvider } from '../src/delta-strategy/db/storage/DatabaseProvi
 export { FieldSetEntity } from '../src/delta-strategy/db/storage/entities/FieldSetEntity';
 export { DeltaHistoryEntity } from '../src/delta-strategy/db/storage/entities/DeltaHistoryEntity';
 
+// DynamoDB Delta Storage exports
+export { DynamoDBDeltaStorage } from '../src/delta-strategy/dynamodb/storage/DynamoDBDeltaStorage';
+export type { DynamoDBDeltaStorageConfig } from '../src/delta-strategy/dynamodb/storage/DynamoDBDeltaStorage';
+
 // Delta Strategy Runner exports
 export { DeltaStrategyForDatabase } from '../src/delta-strategy/db/RunnerStrategyForDatabase';
 export { DeltaStrategyForFileSystem } from '../src/delta-strategy/file/RunnerStrategyForFile';
 export { DeltaStrategyForS3Bucket } from '../src/delta-strategy/file/RunnerStrategyForFile';
+export { DeltaStrategyForDynamoDB } from '../src/delta-strategy/dynamodb/RunnerStrategyForDynamoDb';
 
 // Re-export for backward compatibility
 export { FileSystemDeltaStorage as FileStorage } from '../src/delta-strategy/file/storage/FileStorage';

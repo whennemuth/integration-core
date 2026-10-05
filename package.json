@@ -27,7 +27,7 @@
     "pack": "npm run build && npm pack --pack-destination .",
     "prepack": "node bin/remove-tests.js",
     "publish": "npm run build && npm publish --pack-destination .",
-    "publish-s3": "npm run build && npm pack --pack-destination . && aws s3 cp integration-core-1.0.0.tgz s3://simple-npm-package-bucket/",
+    "publish-s3": "npm run build && npm pack --pack-destination . && aws s3 cp integration-core-1.0.0.tgz s3://simple-npm-package-bucket/dynamodb/",
     "watch": "tsc -w",
     "test": "jest --silent",
     "test-harness": "ts-node ./test/test-harness/Runner.ts",
@@ -46,14 +46,17 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.400.0",
     "@aws-sdk/client-s3": "^3.939.0",
+    "@aws-sdk/lib-dynamodb": "^3.400.0",
     "@aws-sdk/lib-storage": "^3.939.0",
     "better-sqlite3": "^12.4.1",
     "humanize-duration": "^3.33.2",
+    "integration-core": "file:",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
-    "sqlite3": "^6.0.1",
-    "typeorm": "^0.3.6"
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.20"
   },
   "overrides": {
     "tar": "^7.5.6"
