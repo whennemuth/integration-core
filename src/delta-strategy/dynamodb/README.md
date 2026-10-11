@@ -32,7 +32,7 @@ This directory contains the DynamoDB-based delta storage implementation, which i
 - **NEW**: Write to both tables (first appearance in source)
 - **UPDATED**: Write to both tables with previousHash in history
 - **UNCHANGED**: Skip entirely (no writes)
-- **DELETED**: Write to PersonHistory only (detected by merger)
+- **DELETED**: Written by `markDeleted()` - PersonCurrentState keeps the row with a DELETED:-prefixed hash and `deletedAt`, and PersonHistory gets a DELETED record
 
 ## Key Features
 
@@ -80,9 +80,10 @@ Located in: `src/delta-strategy/dynamodb/storage/DynamoDBDeltaStorage.ts`
 - `fetchPreviousData()`: BatchGetItem for chunk-scoped personIds
 - `updatePreviousData()`: BatchWriteItem to both tables
 - `getPersonIdsForSyncRun()`: Query GSI for deletion detection
+- `markDeleted()`: Mark soft-deleted persons (DELETED:-prefixed hash in PersonCurrentState, DELETED record in PersonHistory)
 
 **Configuration:**
-Table names passed as constructor parameters (defined in fargate project):
+Table names passed as constructor parameters (defined in importing projects):
 ```typescript
 const storage = new DynamoDBDeltaStorage({
   region: 'us-east-1',
@@ -92,20 +93,20 @@ const storage = new DynamoDBDeltaStorage({
 });
 ```
 
-## Integration with Fargate Project
+## Integration with Importing Projects
 
-### Table Naming (Fargate Responsibility)
+### Table Naming (Importing Project Responsibility)
 
-Table names defined in **integration-huron-person-fargate**:
-- `src/PersonCurrentStateTable.ts`: Table name generator
-- `src/PersonHistoryTable.ts`: Table name generator
-- `lib/DynamoDB.ts`: CDK table creation
+Table names are defined by the importing (infrastructure) project, typically with:
+- A PersonCurrentState table name generator
+- A PersonHistory table name generator
+- Infrastructure-as-code (e.g. CDK) table creation
 
-### Entry Points (Fargate Responsibility)
+### Entry Points (Importing Project Responsibility)
 
-Docker entry points that use DynamoDB storage:
-- `docker/processor-dynamodb.ts`: Processor using DynamoDB strategy
-- `docker/merger-dynamodb.ts`: Merger using DynamoDB strategy (simplified)
+Entry points (e.g. containerized pipeline tasks) that use DynamoDB storage, typically:
+- A processor using the DynamoDB strategy
+- A merger using the DynamoDB strategy (simplified)
 
 ## Comparison with Other Strategies
 
@@ -124,7 +125,7 @@ Docker entry points that use DynamoDB storage:
 ```typescript
 import { DynamoDBDeltaStorage } from 'integration-core';
 
-// Create storage instance with table names from fargate config
+// Create storage instance with table names from the importing project's config
 const storage = new DynamoDBDeltaStorage({
   region: process.env.AWS_REGION || 'us-east-1',
   personCurrentStateTableName: getPersonCurrentStateTableName(context),
@@ -154,15 +155,15 @@ const deletedPersons = detectDeletions(populationCache, seenPersonIds);
 
 ## Testing
 
-Test harnesses should be created in **integration-huron-person-fargate** project:
-- `src/DynamoDBDeltaStorageHarness.ts`: Test storage operations
+Test harnesses should be created in the importing (infrastructure) project:
+- A DynamoDBDeltaStorage harness: Test storage operations
 - Uses TestEnvironment pattern for configuration
 - Tests BatchGetItem, BatchWriteItem, Query operations
 
 ## Migration Path
 
 1. Create DynamoDB tables in CDK (conditional on `PREVIOUS_STORAGE_TYPE === 'dynamodb'`, which is the default)
-2. Implement processor-dynamodb.ts entry point
+2. Implement a DynamoDB processor entry point
 3. Test with subset of data
 4. Compare results with file-based strategy
 5. Gradually roll out to production

@@ -9,6 +9,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { DeltaStorage } from '../../../DeltaTypes';
 import { Field, FieldSet } from '../../../InputTypes';
+import { isDeletedHash, toDeletedHash } from '../../DeletedHashMarker';
 
 /**
  * Configuration for DynamoDB delta storage
@@ -49,7 +50,7 @@ export interface DynamoDBDeltaStorageConfig {
  *    - Write policy: NEW, UPDATED, DELETED only (skip UNCHANGED)
  * 
  * Key Design Features:
- * - Table names passed as constructor parameters (defined in fargate project)
+ * - Table names passed as constructor parameters (defined in importing projects)
  * - Batch operations for efficiency (up to 100 items per request)
  * - Chunk-scoped fetches (only fetch personIds in current chunk)
  * - No UNCHANGED writes (saves storage and write capacity)
@@ -169,7 +170,7 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
    * - NEW: Write to both tables
    * - UPDATED: Write to both tables (include previousHash in history)
    * - UNCHANGED: Skip entirely (neither table is written)
-   * - DELETED: Only write to PersonHistory (handled by merger, not processors)
+   * - DELETED: Not written here - see markDeleted()
    *
    * Change classification: callers (EndToEnd) pass every record in the chunk, changed or not, so
    * each record's changeType is determined here by comparing its hash with the one stored in
@@ -290,6 +291,57 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
     // reflect - which would get the same change written to history again on the next run.
     await this.batchWriteWithRetry(personCurrentStateTableName, currentStateItems);
     await this.batchWriteWithRetry(personHistoryTableName, historyItems);
+  }
+
+  /**
+   * Records that the given persons were soft-deleted (deactivated) in the target, so that every
+   * caller that deactivates persons (bulk deferred delete handling, or a sync of individual
+   * persons) leaves the same record shapes behind:
+   * - PersonCurrentState: overwritten with a DELETED:-prefixed hash (see DeletedHashMarker.ts),
+   *   this run's syncRunId and a deletedAt timestamp. The row is kept, not removed.
+   * - PersonHistory: a DELETED record whose previousHash is the pre-deletion hash.
+   *
+   * Idempotent: persons with no stored record (never synced, so nothing to mark) or whose stored
+   * hash is already marked are skipped.
+   *
+   * @param params.personIds - Person identifiers (e.g. BUIDs) that were deactivated in the target
+   * @returns The personIds that were actually marked
+   */
+  async markDeleted(params: { personIds: string[] }): Promise<{ marked: string[] }> {
+    const { personIds } = params;
+    if (!personIds || personIds.length === 0) {
+      return { marked: [] };
+    }
+
+    const { personCurrentStateTableName, personHistoryTableName } = this.config;
+    const syncRunId = this.config.syncRunId ?? new Date().toISOString();
+    const deletedAt = new Date().toISOString();
+    const storedHashes = await this.getStoredHashes(personIds);
+
+    const currentStateItems: any[] = [];
+    const historyItems: any[] = [];
+    const marked: string[] = [];
+
+    for (const [personId, hash] of storedHashes.entries()) {
+      if (isDeletedHash(hash)) {
+        continue;
+      }
+      marked.push(personId);
+      currentStateItems.push({
+        PutRequest: { Item: { personId, hash: toDeletedHash(hash), syncRunId, deletedAt } }
+      });
+      historyItems.push({
+        PutRequest: { Item: { personId, syncRunId, hash, changeType: 'DELETED', previousHash: hash } }
+      });
+    }
+
+    console.log(`DynamoDBDeltaStorage: marking ${marked.length} of ${personIds.length} person(s) as DELETED`);
+
+    // Same ordering rationale as updatePreviousData()
+    await this.batchWriteWithRetry(personCurrentStateTableName, currentStateItems);
+    await this.batchWriteWithRetry(personHistoryTableName, historyItems);
+
+    return { marked };
   }
 
   /**

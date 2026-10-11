@@ -1,5 +1,6 @@
 import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBDeltaStorage } from '../src/delta-strategy/dynamodb/storage/DynamoDBDeltaStorage';
+import { DELETED_HASH_PREFIX } from '../src/delta-strategy/DeletedHashMarker';
 import { FieldSet } from '../src/InputTypes';
 
 describe('DynamoDBDeltaStorage', () => {
@@ -248,6 +249,73 @@ describe('DynamoDBDeltaStorage', () => {
       const storage = buildStorage();
       const result = await storage.fetchPreviousData({ clientId: 'unused', limitTo: [] });
       expect(result).toEqual([]);
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markDeleted', () => {
+    const writtenItems = (tableName: string): any[] => sendSpy.mock.calls
+      .filter(([cmd]: any[]) => cmd instanceof BatchWriteCommand && cmd.input.RequestItems?.[tableName])
+      .flatMap(([cmd]: any[]) => cmd.input.RequestItems[tableName].map((r: any) => r.PutRequest.Item));
+
+    const mockStoredHashes = (stored: Record<string, string>) => {
+      sendSpy.mockImplementation(async (cmd: any) => {
+        if (cmd instanceof BatchGetCommand) {
+          const keys = cmd.input.RequestItems!['person-current-state'].Keys as { personId: string }[];
+          return {
+            Responses: {
+              'person-current-state': keys
+                .filter(({ personId }) => personId in stored)
+                .map(({ personId }) => ({ personId, hash: stored[personId] }))
+            }
+          };
+        }
+        return {};
+      });
+    };
+
+    const buildStorageWithRunId = () => new DynamoDBDeltaStorage({
+      region: 'us-east-1',
+      personCurrentStateTableName: 'person-current-state',
+      personHistoryTableName: 'person-history',
+      syncRunId: '2026-10-11T12:00:00.000Z'
+    });
+
+    it('marks the stored hash DELETED: in PersonCurrentState and writes a DELETED history record', async () => {
+      mockStoredHashes({ U0000001: 'hash1' });
+      const result = await buildStorageWithRunId().markDeleted({ personIds: ['U0000001'] });
+
+      expect(result.marked).toEqual(['U0000001']);
+
+      const [currentState] = writtenItems('person-current-state');
+      expect(currentState).toEqual(expect.objectContaining({
+        personId: 'U0000001',
+        hash: `${DELETED_HASH_PREFIX}hash1`,
+        syncRunId: '2026-10-11T12:00:00.000Z'
+      }));
+      expect(currentState.deletedAt).toBeDefined();
+
+      expect(writtenItems('person-history')).toEqual([{
+        personId: 'U0000001',
+        syncRunId: '2026-10-11T12:00:00.000Z',
+        hash: 'hash1',
+        changeType: 'DELETED',
+        previousHash: 'hash1'
+      }]);
+    });
+
+    it('skips persons with no stored record and persons already marked deleted', async () => {
+      mockStoredHashes({ U0000002: `${DELETED_HASH_PREFIX}hash2` });
+      const result = await buildStorageWithRunId().markDeleted({ personIds: ['U0000001', 'U0000002'] });
+
+      expect(result.marked).toEqual([]);
+      expect(writtenItems('person-current-state')).toEqual([]);
+      expect(writtenItems('person-history')).toEqual([]);
+    });
+
+    it('does nothing for an empty personIds list', async () => {
+      const result = await buildStorage().markDeleted({ personIds: [] });
+      expect(result.marked).toEqual([]);
       expect(sendSpy).not.toHaveBeenCalled();
     });
   });

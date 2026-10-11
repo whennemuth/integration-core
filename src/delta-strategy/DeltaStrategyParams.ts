@@ -48,7 +48,7 @@ export type S3Config = {
 /**
  * DynamoDB configuration for delta storage
  * Configures AWS DynamoDB tables for storing person hash state and history.
- * Table names should be provided by the infrastructure layer (fargate project).
+ * Table names should be provided by the infrastructure layer (importing projects).
  */
 export type DynamoDBConfig = {
   region: string;

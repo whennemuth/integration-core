@@ -12,6 +12,7 @@ export * from '../src/InputValidation';
 // Delta Strategy Params exports
 export * from '../src/delta-strategy/DeltaStrategyParams';
 export * from '../src/delta-strategy/DeltaStrategy';
+export * from '../src/delta-strategy/DeletedHashMarker';
 
 // Delta Storage exports
 export { StreamProvider, NDJSONStreamProcessor } from '../src/delta-strategy/file/storage/StreamProvider';
