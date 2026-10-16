@@ -41,14 +41,14 @@ This directory contains the DynamoDB-based delta storage implementation, which i
 **Current File-Based Strategy:**
 - Processors write chunk-specific mini-deltas to S3
 - Each processor pretends to write global state but actually writes partial state
-- Merger consolidates all mini-deltas into final delta
+- PostProcessor consolidates all mini-deltas into final delta
 - Complex coordination with marker files
 
 **DynamoDB Strategy:**
 - Processors write directly to shared DynamoDB tables
 - No mini-deltas, no marker files, no consolidation needed
 - Each processor batch operation is atomic and consistent
-- Merger simplified to deletion detection only
+- PostProcessor simplified to deletion detection only
 
 ### Batch Operations
 
@@ -57,7 +57,7 @@ This directory contains the DynamoDB-based delta storage implementation, which i
 2. In-memory comparison: Compute NEW/UPDATED/UNCHANGED
 3. BatchWriteItem: Update both tables (up to 25 per request)
 
-**Merger:**
+**PostProcessor:**
 1. Query GSI: Get all personIds seen in current sync run
 2. Compare with full population cache
 3. Detect deletions (in cache but not in sync run)
@@ -106,7 +106,7 @@ Table names are defined by the importing (infrastructure) project, typically wit
 
 Entry points (e.g. containerized pipeline tasks) that use DynamoDB storage, typically:
 - A processor using the DynamoDB strategy
-- A merger using the DynamoDB strategy (simplified)
+- A post-processor using the DynamoDB strategy (simplified)
 
 ## Comparison with Other Strategies
 
@@ -116,7 +116,7 @@ Entry points (e.g. containerized pipeline tasks) that use DynamoDB storage, typi
 | History storage | None | DeltaHistory table | PersonHistory |
 | Delta computation | In-memory comparison | SQL outer joins | In-memory comparison |
 | Batch efficiency | Stream entire file | SQL batch operations | BatchGetItem/WriteItem |
-| Merger complexity | High (file consolidation) | Medium (SQL queries) | Low (deletion detection only) |
+| PostProcessor complexity | High (file consolidation) | Medium (SQL queries) | Low (deletion detection only) |
 | Coordination | Marker files | Database transactions | Atomic batch operations |
 | Scalability | Lambda-friendly | Requires connection pooling | Lambda-friendly |
 
@@ -148,7 +148,7 @@ await storage.updatePreviousData({
   newPreviousData: delta.added.concat(delta.updated)
 });
 
-// Merger: Get all persons seen in sync run
+// PostProcessor: Get all persons seen in sync run
 const seenPersonIds = await storage.getPersonIdsForSyncRun(syncRunId);
 const deletedPersons = detectDeletions(populationCache, seenPersonIds);
 ```

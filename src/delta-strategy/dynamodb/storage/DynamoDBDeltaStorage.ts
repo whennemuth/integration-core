@@ -422,7 +422,7 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
 
   /**
    * Query PersonCurrentState by syncRunId to get all persons seen in a specific sync run.
-   * Used by merger for deletion detection.
+   * Used by post-processor for deletion detection.
    * 
    * @param syncRunId - ISO timestamp of sync run
    * @returns Array of personIds seen in the sync run
