@@ -8,11 +8,22 @@ This project is an independently versioned npm package with its own Git reposito
 
 The workspace is a development convenience, not a single source-controlled unit.
 
-## Shared Copilot Skills Setup (VS Code Configuration)
+## Shared Skills Setup
 
-Shared skills are maintained in a separate repository at `integration-workspace-skills/` and discovered by VS Code's Copilot using the `chat.agentSkillsLocations` setting in your `.code-workspace` file.
+Shared agent skills are maintained in a separate repository at `integration-workspace-skills/.claude/skills/`. This is a native skill location that both VS Code (GitHub Copilot) and Claude Code discover without any custom settings. See `integration-workspace-skills/README.md` for full setup details.
 
-**Key Point**: In multi-root `.code-workspace` configurations, `chat.agentSkillsLocations` paths are resolved relative to each workspace root folder, not from the `.code-workspace` file location itself.
+### Claude Code
+
+Claude Code has no multi-root workspace. Load the skills repository with `--add-dir` (or `/add-dir` in a running session):
+
+```bash
+# From the workspace root
+claude --add-dir integration-workspace-skills
+```
+
+### VS Code
+
+VS Code discovers `.claude/skills/` in every root folder of a [**multi-root**](https://code.visualstudio.com/docs/editing/workspaces/workspaces#_multiroot-workspaces) workspace and makes those skills available across the whole workspace. Include `integration-workspace-skills` as a root folder in your [**`.code-workspace`** file](https://code.visualstudio.com/docs/editing/workspaces/workspaces#_workspace-settings), as in the scenarios below.
 
 ### Scenario 1: Working only on integration-core
 
@@ -35,9 +46,6 @@ Shared skills are maintained in a separate repository at `integration-workspace-
     "settings": {
         "chat.tools.terminal.autoApprove": {
             "npm test": true
-        },
-        "chat.agentSkillsLocations": {
-            "../integration-workspace-skills/skills": true
         }
     }
 }
@@ -72,9 +80,6 @@ Shared skills are maintained in a separate repository at `integration-workspace-
     "settings": {
         "chat.tools.terminal.autoApprove": {
             "npm test": true
-        },
-        "chat.agentSkillsLocations": {
-            "../integration-workspace-skills/skills": true
         }
     }
 }
