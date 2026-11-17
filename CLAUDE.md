@@ -121,10 +121,12 @@ Provide abstract synchronization logic for incremental data updates using the th
 ### Publishing the package
 `npm run publish-s3` builds, packs `integration-core-1.0.0.tgz` and copies it to the package bucket. The version and
 address stay the same, so a consumer takes a new build by updating its lockfile's `integrity` for this package (the
-`sha512-` base64 SHA-512 of the tgz, which `npm pack` prints) and running a plain `npm install`. Don't install it by
-its address (`npm install <url>`): this `package.json` lists the package as its own dependency
-(`"integration-core": "file:"`), which npm then follows, writing the package as `file:` into the consumer's lockfile and
-removing packages.
+`sha512-` base64 SHA-512 of the tgz, which `npm pack` prints) and running a plain `npm install`: it changes nothing
+else in the lockfile. Until 2026-11-17 this `package.json` also listed the package as its own dependency
+(`"integration-core": "file:"`, added by accident in `b6ab9e2`), which put a self-link
+(`node_modules/integration-core/node_modules/integration-core`) into consumers' lockfiles and made
+`npm install <url>` write the package as `file:` and remove packages. Don't add it back: nothing in this package
+imports itself by name.
 
 ### DataSource / DataTarget Base Classes
 **Location**: `src/DataSource.ts`, `src/DataTarget.ts`
