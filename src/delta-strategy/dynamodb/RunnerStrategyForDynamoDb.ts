@@ -1,6 +1,7 @@
 import { BruteForceDeltaEngine, fishOutUpdatedRecordsByPK } from "../DeltaByBruteForce";
 import { DeltaParms, DeltaStorage, FishingParms } from "../../DeltaTypes";
 import { InputUtilsDecorator } from "../../InputUtils";
+import { FieldSet } from "../../InputTypes";
 import { DynamoDBDeltaStorage } from "./storage/DynamoDBDeltaStorage";
 import { DeltaStrategy } from '../DeltaStrategy';
 import { DeltaStrategyParams, DynamoDBConfig } from "../DeltaStrategyParams";
@@ -57,11 +58,13 @@ export class DeltaStrategyForDynamoDB extends DeltaStrategy {
     // DynamoDB storage: use brute force delta computation (like file-based strategy)
     const deltaEngine = new BruteForceDeltaEngine();
 
-    // Fetch previous input from storage (limitTo=currentFieldSets for chunk-scoped fetch)
-    // This triggers BatchGetItem for only personIds in current chunk
-    const previous = await storage.fetchPreviousData({ 
-      clientId, 
-      limitTo: currentFieldSets 
+    // Fetch the chunk's stored records (BatchGetItem for only its personIds), asking by primary key alone: the stored
+    // records come back named after the field asked by, and the comparison below matches records on the primary key.
+    // Asked by whole records, they came back named after a record's first field (an identifier other than the primary
+    // key, for some mappers), so no stored record matched, and every changed record was taken for a new one.
+    const previous = await storage.fetchPreviousData({
+      clientId,
+      limitTo: DeltaStrategyForDynamoDB.keyAndHashFieldSets(currentFieldSets, inputUtils.getPrimaryKeys())
     }) || [];
 
     // Define delta parameters
@@ -74,6 +77,17 @@ export class DeltaStrategyForDynamoDB extends DeltaStrategy {
 
     // Compute delta using brute force engine
     return await deltaEngine.computeDelta(deltaParms);
+  }
+
+  /**
+   * The given records reduced to their primary key fields and hash (as InputUtilsDecorator.getKeyAndHashFieldSets()
+   * reduces its own), for looking up their stored records: the records compared, whatever the decorator wraps.
+   */
+  public static keyAndHashFieldSets(fieldSets: FieldSet[], primaryKeys: Set<string>): FieldSet[] {
+    return fieldSets.map(fs => ({
+      fieldValues: fs.fieldValues.filter(fv => primaryKeys.has(Object.keys(fv)[0])),
+      hash: fs.hash
+    }));
   }
 
   /**

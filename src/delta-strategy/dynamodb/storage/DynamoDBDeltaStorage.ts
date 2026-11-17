@@ -79,20 +79,30 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
    * Uses BatchGetItem for efficiency (up to 100 items per request).
    * 
    * @param params.clientId - Not used in DynamoDB implementation (kept for interface compatibility)
-   * @param params.limitTo - FieldSets containing personIds to fetch (chunk-scoped). Each FieldSet is
-   *   expected to already be reduced to just its primary key field(s) (e.g. by
-   *   InputUtilsDecorator.getKeyAndHashFieldSets() or DeltaStrategy.buildLimitToArray()), so the
-   *   field name itself is not assumed - whatever it's actually called (e.g. sourceIdentifier), only
-   *   its value is used to key the DynamoDB lookup.
+   * @param params.limitTo - FieldSets containing personIds to fetch (chunk-scoped), each reduced to its one primary key
+   *   field (as DeltaStrategyForDynamoDB.keyAndHashFieldSets() or InputUtilsDecorator.getKeyAndHashFieldSets() reduce
+   *   them). The field's name isn't assumed: whatever it is (e.g. sourceIdentifier), its value keys the lookup, and the
+   *   rows come back named after it, which is what lets the caller match them to its records. A field set without one
+   *   is skipped.
    * @returns Array of FieldSets with the same field name as the input plus hash
+   * @throws when a field set has more than one field, or they don't all have the same field: this storage can't tell
+   *   which is the key, and naming the rows after the wrong one leaves the caller's records unmatched (every changed
+   *   record would then look new)
    */
   async fetchPreviousData(params: { clientId: string; limitTo?: FieldSet[] }): Promise<FieldSet[]> {
     const { limitTo } = params;
-    
+
     if (!limitTo || limitTo.length === 0) {
       // If no limitTo specified, return empty array
       // (In DynamoDB strategy, we always work with specific chunks)
       return [];
+    }
+
+    const unreduced = limitTo.find(fs => fs.fieldValues.length > 1);
+    if (unreduced) {
+      const names = unreduced.fieldValues.map(fv => Object.keys(fv)[0]).join(', ');
+      throw new Error(`fetchPreviousData() takes field sets reduced to their primary key field, but one has ${unreduced.fieldValues.length} fields (${names}): `
+        + 'reduce them first (DeltaStrategyForDynamoDB.keyAndHashFieldSets() or InputUtilsDecorator.getKeyAndHashFieldSets())');
     }
 
     const { personCurrentStateTableName } = this.config;
@@ -109,9 +119,14 @@ export class DynamoDBDeltaStorage implements DeltaStorage {
       return [];
     }
 
+    const fieldNames = [...new Set(idEntries.map(e => e.fieldName))];
+    if (fieldNames.length > 1) {
+      throw new Error(`fetchPreviousData() takes field sets that all have the same primary key field, but got ${fieldNames.join(', ')}`);
+    }
+
     // Preserve the caller's primary key field name (e.g. sourceIdentifier) in the output, so
     // downstream matching (e.g. InputUtilsDecorator.restorePreviousHashesForFailures()) still works.
-    const fieldName = idEntries[0].fieldName;
+    const fieldName = fieldNames[0];
     const personIds = idEntries.map(e => e.value);
 
     // Batch get in chunks of 100 (DynamoDB limit)

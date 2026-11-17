@@ -251,6 +251,33 @@ describe('DynamoDBDeltaStorage', () => {
       expect(result).toEqual([]);
       expect(sendSpy).not.toHaveBeenCalled();
     });
+
+    it('refuses whole records, which it would name after their first field, before asking DynamoDB', async () => {
+      const storage = buildStorage();
+      const limitTo: FieldSet[] = [{ fieldValues: [{ id: 'U0000001' }, { sourceIdentifier: 'U0000001' }], hash: 'h' }];
+      await expect(storage.fetchPreviousData({ clientId: 'unused', limitTo }))
+        .rejects.toThrow('reduced to their primary key field, but one has 2 fields (id, sourceIdentifier)');
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('refuses field sets keyed by different fields', async () => {
+      const storage = buildStorage();
+      const limitTo: FieldSet[] = [
+        { fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'h1' },
+        { fieldValues: [{ id: 'U0000002' }], hash: 'h2' }
+      ];
+      await expect(storage.fetchPreviousData({ clientId: 'unused', limitTo }))
+        .rejects.toThrow('all have the same primary key field, but got sourceIdentifier, id');
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('skips a field set without a key field', async () => {
+      sendSpy.mockResolvedValue({ Responses: { 'person-current-state': [{ personId: 'U0000001', hash: 'hash1' }] } });
+      const storage = buildStorage();
+      const limitTo: FieldSet[] = [{ fieldValues: [], hash: 'h0' }, { fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'h1' }];
+      await expect(storage.fetchPreviousData({ clientId: 'unused', limitTo }))
+        .resolves.toEqual([{ fieldValues: [{ sourceIdentifier: 'U0000001' }], hash: 'hash1' }]);
+    });
   });
 
   describe('markDeleted', () => {
