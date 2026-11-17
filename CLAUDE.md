@@ -103,6 +103,29 @@ MY_PREFIX_BATCH_SIZE=200
 
 Provide abstract synchronization logic for incremental data updates using the three-phase pipeline.
 
+**The DynamoDB strategy looks stored records up by primary key alone** (`src/delta-strategy/dynamodb/`):
+- `DeltaStrategyForDynamoDB.computeDelta()` fetches a chunk's stored hashes with `fetchPreviousData({ limitTo })`, passing
+  the records reduced to their primary key field and hash (`keyAndHashFieldSets()`), then compares them in memory
+  (`fishOutUpdatedRecordsByPK()`, which matches on the primary key).
+- `DynamoDBDeltaStorage.fetchPreviousData()` names the rows it returns after the one field each `limitTo` record has,
+  since it doesn't know the primary key's name. It refuses (throws, before calling DynamoDB) a record with more than
+  one field, or records keyed by different fields. A record with no field is skipped.
+- Why: until 2026-11-17 (`31a0b49`), `computeDelta()` passed the whole records, and the rows came back named after a
+  record's first field. When that field wasn't the primary key, no stored row matched: with a trusted baseline, every
+  changed record was classified added (so a data target created it again, and got a duplicate error) instead of
+  updated, and a record returning after being marked deleted (`DELETED:` hash) wasn't reactivated. Unchanged records
+  (matched by hash alone) and the file and database strategies were never affected. Tests:
+  `test/RunnerStrategyForDynamoDb.test.ts` (records whose primary key isn't their first field) and
+  `test/DynamoDBDeltaStorage.test.ts`.
+
+### Publishing the package
+`npm run publish-s3` builds, packs `integration-core-1.0.0.tgz` and copies it to the package bucket. The version and
+address stay the same, so a consumer takes a new build by updating its lockfile's `integrity` for this package (the
+`sha512-` base64 SHA-512 of the tgz, which `npm pack` prints) and running a plain `npm install`. Don't install it by
+its address (`npm install <url>`): this `package.json` lists the package as its own dependency
+(`"integration-core": "file:"`), which npm then follows, writing the package as `file:` into the consumer's lockfile and
+removing packages.
+
 ### DataSource / DataTarget Base Classes
 **Location**: `src/DataSource.ts`, `src/DataTarget.ts`
 
